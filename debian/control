@@ -1,0 +1,10 @@
+Source: emuld
+Section: misc
+Priority: extra
+Maintainer: Sungmin Ha <sungmin82.ha@samsung.com>
+Standards-Version: 0.2.1
+
+Package: emuld
+Section: misc
+Architecture: i386
+Description: emulator daemon for sdb
