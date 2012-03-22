@@ -1,3 +1,11 @@
+emuld (0.2.2) unstable; urgency=low
+
+  * Update changelog version.
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emulator-daemon_0.2.2
+
+ -- Jihye kim <jihye1128.kim@samsung.com>  Thr, 22 Mar 2012 20:00:00 +0900
+
 emuld (0.2.1) unstable; urgency=low
 
   * Initial Release.
