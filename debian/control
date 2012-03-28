@@ -1,7 +1,8 @@
 Source: emuld
 Section: misc
 Priority: extra
-Maintainer: Sungmin Ha <sungmin82.ha@samsung.com>,
+Maintainer: Kitae kim <kt920.kim@samsung.com>,
+	    Sungmin Ha <sungmin82.ha@samsung.com>,
 	    Jihye Kim <jihye1128.kim@samsung.com>,
 	    Yeongkyoon Lee <yeongkyoon.lee@samsung.com>
 Standards-Version: 0.2.2
