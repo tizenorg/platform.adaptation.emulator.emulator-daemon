@@ -1,5 +1,5 @@
 #git:/slp/pkgs/e/emulator-daemon
-Name: emulator-daemon
+Name: emuld
 Version: 0.2.4
 Release: 1
 Summary: emuld is used for communication emulator between and ide.
@@ -15,7 +15,9 @@ BuildRequires: cmake
 %setup -q
 
 %build
-cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
+export LDFLAGS+="-Wl,--rpath=%{_prefix}/lib -Wl,--as-needed"    
+    
+LDFLAGS="$LDFLAGS" cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
 make
 
