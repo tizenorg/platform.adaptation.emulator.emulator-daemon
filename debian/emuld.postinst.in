@@ -1,3 +1,4 @@
 #!/bin/sh
 chmod 777 /usr/bin/emuld
-	
+mkdir -p /opt/nfc
+touch /opt/nfc/sdkMsg 

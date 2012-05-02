@@ -35,6 +35,8 @@ rm -rf install_manifes.txt
 
 %post
 chmod 777 /usr/bin/emuld
+mkdir -p /opt/nfc
+touch /opt/nfc/sdkMsg
 
 %postun
 
