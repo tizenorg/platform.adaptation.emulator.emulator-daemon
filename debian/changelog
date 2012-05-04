@@ -1,3 +1,11 @@
+emuld (0.2.4) unstable; urgency=low
+
+  * back to the 0.2.2
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.4
+
+ -- Jihye kim <jihye1128.kim@samsung.com>  Thu, 4 May 2012 11:50:00 +0900
+
 emuld (0.2.3) unstable; urgency=low
 
   * Add making 'sdkMsg' file during post install.
