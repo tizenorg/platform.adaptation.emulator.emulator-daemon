@@ -323,9 +323,9 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	int getcnt = 0;
 	char* r_tmpbuf = NULL;
 
-	r_tmpbuf = (char*)malloc(sizeof(char) * size);
-	*r_databuf = (char*)malloc(sizeof(char) * size);
-	memset(*r_databuf, '\0', sizeof(char) * size);
+	r_tmpbuf = (char*)malloc(sizeof(char) * size + 1);
+	*r_databuf = (char*)malloc(sizeof(char) * size + 1);
+	memset(*r_databuf, '\0', sizeof(char) * size + 1);
 
 	while(recvd_size < size)
 	{
@@ -556,39 +556,41 @@ void client_recv(int event_fd)
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("location data recv buffer: %s", r_databuf);
 
-			if(sendto(uGpsdFd, r_databuf, packet->length, 0, (struct sockaddr*)&si_gpsd_other, sglen) == -1)
-				LOG("sendto error!");
+			setting_location(r_databuf);
 		}
 		else if(strncmp(tmpbuf, "nfc", 3) == 0)
 		{
-			recvd_size = recv_data(event_fd, &r_databuf, 5);
-
-                	LOG("nfc packet length r_databuf: %s", r_databuf);
-
-                	if( recvd_size <= 0 )
+			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
+			if( recvd_size <= 0 )
                 	{
                         	free(r_databuf);
 				r_databuf = NULL;
                         	return;
                 	}
+			/*
+			LOG("nfc packet length r_databuf: %s", r_databuf);
 
                		memset(tmpbuf, '\0', sizeof(tmpbuf));
                 	parse_len = parse_val(r_databuf, 0x0a, tmpbuf);
 
 			int length = atoi(tmpbuf);
-			
+			*/
+
+			//byte to int
+			int length = ((r_databuf[0] & 0xff) << 24 | (r_databuf[1] & 0xff) << 16
+					| (r_databuf[2] & 0xff) << 8 | (r_databuf[3] & 0xff)) ;
                 	LOG("nfc packet converted length: %d", length);
                 	free(r_databuf);
 			r_databuf = NULL;
 
 			recvd_size = recv_data(event_fd, &r_databuf, length);
-			
+			/*
 			char* strbuf = NULL;
 			strbuf = (char*)malloc(length + 1);
 			memset(strbuf, '\0', length + 1);
 			memcpy(strbuf, r_databuf, length);
-
-			LOG("nfc data recv buffer: %s", strbuf);
+			*/
+			LOG("nfc data recv buffer: %s", r_databuf);
 
 			FILE* fd;
 			fd = fopen("/opt/nfc/sdkMsg", "w");
@@ -599,10 +601,10 @@ void client_recv(int event_fd)
 				packet = NULL;
 				return;
 			}
-			fprintf(fd, "%s", strbuf);
+			fprintf(fd, "%s", r_databuf);
 			fclose(fd);
-			free(strbuf);
-			strbuf = NULL;
+			//free(strbuf);
+			//strbuf = NULL;
 		}
 		else if(strncmp(tmpbuf, "system", 6) == 0)
 		{
@@ -709,6 +711,52 @@ void end_server(int sig)
 	LOG("[SHUTDOWN] Server closed by signal %d",sig);
 
 	exit(0);
+}
+
+// location event
+char command[512];
+char latitude[128];
+char longitude[128];
+void setting_location(char* databuf)
+{
+	char* s = strchr(databuf, ',');
+	memset(command, 0, 256);
+	if (s == NULL) { // SET MODE
+		int mode = atoi(databuf);
+		switch (mode) {
+		case 0: // STOP MODE
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0");
+			break;
+		case 1: // NMEA MODE (LOG MODE)
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1");
+			break;
+		case 2: // MANUAL MODE
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2");
+			break;
+		default:
+			LOG("error(%s) : stop replay mode", databuf);
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0");
+			break;
+		}
+		LOG("Location Command : %s", command);
+		system(command);
+	} else {
+		memset(latitude, 0, 128);
+		memset(longitude, 0, 128);
+		strcpy(longitude, s+1);
+		*s = '\0';
+		strcpy (latitude, databuf);
+
+		// Latitude
+		sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s", latitude);
+		LOG("%s", command);
+		system(command);
+
+		// Longitude
+		sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s", longitude);
+		LOG("%s", command);
+		system(command);
+	}
 }
 
 int main( int argc , char *argv[])

@@ -2,7 +2,7 @@ Source: emuld
 Section: misc
 Priority: extra
 Maintainer:Sungmin Ha <sungmin82.ha@samsung.com>,Jihye Kim <jihye1128.kim@samsung.com>,Yeongkyoon Lee <yeongkyoon.lee@samsung.com>
-Standards-Version: 0.2.4
+Standards-Version: 0.2.5
 
 Package: emuld
 Section: misc

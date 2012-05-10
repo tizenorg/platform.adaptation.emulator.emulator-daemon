@@ -72,6 +72,8 @@ void end_server(int sig);
 static int log_print = -1;
 FILE* log_fd;
 
+// location
+void setting_location(char* databuf);
 #define LOG(fmt, arg...) \
 	do { \
 		log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
