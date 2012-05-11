@@ -275,6 +275,7 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
 void udp_init(void)
 {
 	LOG("start");
+	char* emul_ip = getenv("HOSTNAME");
 
 	if ((uSensordFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
 		fprintf(stderr, "socket error!\n");
@@ -283,7 +284,7 @@ void udp_init(void)
 	memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
 	si_sensord_other.sin_family = AF_INET;
 	si_sensord_other.sin_port = htons(sensord_port);
-	if (inet_aton(EMUL_IP, &si_sensord_other.sin_addr)==0) {
+	if (inet_aton(emul_ip, &si_sensord_other.sin_addr)==0) {
 		fprintf(stderr, "inet_aton() failed\n");
 	}
 
@@ -294,7 +295,7 @@ void udp_init(void)
 	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
 	si_gpsd_other.sin_family = AF_INET;
 	si_gpsd_other.sin_port = htons(gpsd_port);
-	if (inet_aton(EMUL_IP, &si_gpsd_other.sin_addr)==0) {
+	if (inet_aton(emul_ip, &si_gpsd_other.sin_addr)==0) {
 		fprintf(stderr, "inet_aton() failed\n");
 	}
 }

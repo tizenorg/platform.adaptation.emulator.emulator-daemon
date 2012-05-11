@@ -48,7 +48,7 @@
 #define VMODEM_PORT		3578
 #define GPSD_PORT		3579
 #define SENSORD_PORT		3580
-#define EMUL_IP			"10.0.2.16"
+
 #define ID_SIZE			10
 #define HEADER_SIZE		4
 #define EMD_DEBUG
