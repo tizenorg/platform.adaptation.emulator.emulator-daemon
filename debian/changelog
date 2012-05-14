@@ -1,3 +1,11 @@
+emuld (0.2.7) unstable; urgency=low
+
+  * added exception handling
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.7
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Mon, 14 May 2012 18:10:00 +0900
+
 emuld (0.2.6) unstable; urgency=low
 
   * modified how to get host ip

@@ -34,6 +34,7 @@ License: GNU General Public License
 
 ------------------------------------------------------------------*/
 
+#include <assert.h>
 #include "emuld.h"
 
 /* global definition */
@@ -276,6 +277,11 @@ void udp_init(void)
 {
 	LOG("start");
 	char* emul_ip = getenv("HOSTNAME");
+	if(emul_ip == NULL)
+	{
+		LOG("emul_ip is null");
+		assert(0);
+	}
 
 	if ((uSensordFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
 		fprintf(stderr, "socket error!\n");
@@ -352,7 +358,13 @@ int powerdown_by_force()
 
 	/* Getting poweroff duration */
 	buf = getenv("PWROFF_DUR");
-	if (buf != NULL && strlen(buf) < 1024)
+	if(buf == NULL)
+	{
+		LOG("PWROFF_DUR is null");
+		assert(0);
+	}
+	
+	if (strlen(buf) < 1024)
 		poweroff_duration = atoi(buf);
 	if (poweroff_duration < 0 || poweroff_duration > 60) 
 		poweroff_duration = POWEROFF_DURATION;
