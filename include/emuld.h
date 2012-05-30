@@ -38,6 +38,9 @@
 #include <stdarg.h>
 #include <sys/time.h>
 #include <pthread.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <assert.h>
 
 /* definition */
 #define MAX_CLIENT		10000
@@ -48,7 +51,7 @@
 #define VMODEM_PORT		3578
 #define GPSD_PORT		3579
 #define SENSORD_PORT		3580
-
+#define SRV_IP 			"10.0.2.2"
 #define ID_SIZE			10
 #define HEADER_SIZE		4
 #define EMD_DEBUG
@@ -68,6 +71,7 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void client_recv(int event_fd);
 void server_process(void);
 void end_server(int sig);
+int is_mounted(void);
 
 static int log_print = -1;
 FILE* log_fd;

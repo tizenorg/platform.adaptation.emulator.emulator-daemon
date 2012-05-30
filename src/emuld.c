@@ -34,7 +34,6 @@ License: GNU General Public License
 
 ------------------------------------------------------------------*/
 
-#include <assert.h>
 #include "emuld.h"
 
 /* global definition */
@@ -48,6 +47,7 @@ int g_svr_port;                	/* global server port number */
 int g_vm_sockfd; 		/* vmodem fd */
 int g_sdbd_sockfd = -1;		/* sdbd fd */
 static int g_vm_connect_status;	/* connection status between emuld and vmodem  */
+int g_sdcard_sockfd = -1;
 
 pthread_t tid[MAX_CLIENT + 1];
 
@@ -66,6 +66,25 @@ int g_epoll_fd;                		/* epoll fd */
 
 struct epoll_event g_events[MAX_EVENTS]; 
 
+// for vmodem packets
+typedef struct // lxt_message
+{
+	unsigned short length;
+	unsigned char group;
+	unsigned char action;
+	void *data; 
+} LXT_MESSAGE;
+
+void TAPIMessageInit(LXT_MESSAGE *packet)
+{       
+	packet->length = 0;
+	packet->group = 0;
+	packet->action = 0;
+	packet->data = 0;
+}
+
+char SDpath[256];
+       
 /*--------------------------------------------------------------*/
 /* FUNCTION PART 
    ---------------------------------------------------------------*/
@@ -175,6 +194,149 @@ void* init_vm_connect(void* data)
 	
 	g_vm_connect_status = 1;
 	pthread_exit((void *) 0); 
+}
+
+int is_mounted()
+{
+	int ret = -1, i = 0;
+	struct stat buf;
+	char file_name[128];
+	memset(file_name, '\0', sizeof(file_name));
+
+	for(i = 0; i < 10; i++)
+	{
+		sprintf(file_name, "/dev/mmcblk%d", i);
+		ret = access( file_name, F_OK );
+		if( ret == 0 )
+		{
+			lstat(file_name, &buf);
+			if(S_ISBLK(buf.st_mode))
+				return 1;
+			else
+				return 0;
+		}
+	}
+
+	return 0;
+}
+
+void* mount_sdcard(void* data)
+{
+	int ret = -1, i = 0, vconf_value = -1;	
+	struct stat buf;
+	char file_name[128], command[256];
+	memset(file_name, '\0', sizeof(file_name));
+	memset(command, '\0', sizeof(command));
+
+	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	memset(packet, 0, sizeof(LXT_MESSAGE));
+
+	LOG("start sdcard mount thread");
+
+	pthread_detach(pthread_self());
+
+	while(ret < 0)
+	{	
+		for(i = 0; i < 10; i++)
+		{
+			sprintf(file_name, "/dev/mmcblk%d", i);
+			ret = access( file_name, F_OK );
+			if( ret == 0 )
+			{
+				lstat(file_name, &buf);
+				if(!S_ISBLK(buf.st_mode))
+				{
+					sprintf(command, "rm -rf %s", file_name);
+					system(command);
+				}
+				else
+					break;
+			}
+		}
+
+		if( i != 10 )
+		{
+			LOG( "%s is exist", file_name);
+			memset(command, '\0', sizeof(command));
+			sprintf(command, "mount %s /mnt/mmc", file_name);
+			system(command);
+ 
+			system("chmod 777 /opt/storage/sdcard");
+			system("vconftool set -t int memory/Device/Mmc 1 -i -f");
+
+			LOG("sdcard fd: %d", g_sdcard_sockfd);
+			if(g_sdcard_sockfd != -1)
+			{
+				packet->length = strlen(SDpath);		// length
+				packet->group = 11;				// sdcard
+				packet->action = 1;				// mounted
+
+				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+				LOG("SDpath is %s", SDpath);
+				send(g_sdcard_sockfd, SDpath, packet->length, 0);
+			}
+			else
+				return;
+
+			break;
+		}
+		else
+		{
+			LOG( "%s is not exist", file_name);
+			sleep(1);	
+		}		
+	}
+
+	pthread_exit((void *) 0); 
+} 
+
+void umount_sdcard(void)
+{
+	int ret = -1, i = 0;	
+	char file_name[128];
+	memset(file_name, '\0', sizeof(file_name));
+	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	memset(packet, 0, sizeof(LXT_MESSAGE));
+
+	LOG("start sdcard umount");
+
+	pthread_cancel(tid[1]);
+
+	for(i = 0; i < 10; i++)
+	{
+		sprintf(file_name, "/dev/mmcblk%d", i);
+		ret = access( file_name, F_OK);
+		if ( ret == 0 )
+		{
+			LOG( "%s is exist", file_name);
+			system("fuser -kfuc /mnt/mmc");	// kill all processes that are using the sdcard.
+			system("umount /mnt/mmc");
+			system("vconftool set -t int memory/Device/Mmc 0 -i -f");
+
+			LOG("sdcard fd: %d", g_sdcard_sockfd);
+			if(g_sdcard_sockfd != -1)
+			{
+				packet->length = strlen(SDpath);		// length
+				packet->group = 11;				// sdcard
+				packet->action = 0;				// unmounted
+
+				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+				LOG("SDpath is %s", SDpath);
+				send(g_sdcard_sockfd, SDpath, packet->length, 0);
+
+				memset(SDpath, '\0', sizeof(SDpath));
+				sprintf(SDpath, "umounted");
+			}
+			else
+				return;
+
+			break;
+		}
+		else
+		{
+			LOG( "%s is not exist", file_name);
+		}
+	}
 } 
 
 void epoll_init(void)
@@ -248,7 +410,7 @@ void userpool_delete(int cli_fd)
 	{
 		if(g_client[i].cli_sockfd == cli_fd)
 		{
-			g_client[i].cli_sockfd = -1;
+			g_client[i].cli_sockfd = -1;	
 			break;
 		}
 	}
@@ -305,23 +467,6 @@ void udp_init(void)
 		fprintf(stderr, "inet_aton() failed\n");
 	}
 }
-
-// for vmodem packets
-typedef struct // lxt_message
-{
-	unsigned short length;
-	unsigned char group;
-	unsigned char action;
-	void *data; 
-} LXT_MESSAGE;
-
-void TAPIMessageInit(LXT_MESSAGE *packet)
-{       
-	packet->length = 0;
-	packet->group = 0;
-	packet->action = 0;
-	packet->data = 0;
-}       
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {
@@ -473,8 +618,9 @@ void client_recv(int event_fd)
 			LOG("close event_fd: %d", event_fd);
 			userpool_delete(event_fd);
 			close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
-			if(event_fd == g_sdbd_sockfd)			
+			if(event_fd == g_sdbd_sockfd)
 				g_sdbd_sockfd = -1;
+
 			return;
 		}
 
@@ -642,6 +788,83 @@ void client_recv(int event_fd)
 			powerdown_by_force();
 
 		}
+		else if(strncmp(tmpbuf, "sdcard", 6) == 0)
+		{
+			g_sdcard_sockfd = event_fd;
+			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
+			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);	
+
+			LOG("sdcard packet_length: %d", packet->length);
+
+			free(r_databuf);
+			r_databuf = NULL;
+			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+
+			LOG("Something may be added in the data end, but it does not matter.");
+			LOG("sdcard data recv buffer: %s", r_databuf);
+			
+			char token[] = "\n";
+			char tmpdata[recvd_size];
+			memcpy(tmpdata, r_databuf, recvd_size);
+
+			char* ret = NULL;
+			ret = strtok(tmpdata, token);
+			LOG("%s", ret);
+			int mount_param = atoi(ret);
+			int mount_status = 0;
+
+			switch(mount_param)
+			{
+			case 0:							// umount
+				umount_sdcard();
+				send_guest_server(r_databuf);
+				break;
+			case 1:							// mount
+				memset(SDpath, '\0', sizeof(SDpath));
+				ret = strtok(NULL, token);
+				strcpy(SDpath, ret);
+				LOG("sdcard path is %s", SDpath);
+
+				send_guest_server(r_databuf);
+				if(pthread_create(&tid[1], NULL, mount_sdcard, NULL) != 0)
+					LOG("pthread create fail!");
+				break;
+			case 2:							// mount status
+				mount_status = is_mounted();
+
+				LXT_MESSAGE* mntData = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+				memset(mntData, 0, sizeof(LXT_MESSAGE));
+
+				mntData->length = strlen(SDpath);	// length
+				mntData->group = 11;			// sdcard
+
+				switch(mount_status)
+				{
+				case 0:
+					mntData->action = 2;			// umounted status
+					send(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
+					
+					LOG("SDpath is %s", SDpath);
+					send(g_sdcard_sockfd, SDpath, mntData->length, 0);
+					memset(SDpath, '\0', sizeof(SDpath));
+					sprintf(SDpath, "umounted");
+					break;
+				case 1:
+					mntData->action = 3;			// mounted status
+					send(g_sdcard_sockfd, (void*)mntData, sizeof(char) * HEADER_SIZE, 0);
+
+					LOG("SDpath is %s", SDpath);
+					send(g_sdcard_sockfd, SDpath, mntData->length, 0);
+					break;
+				default:
+					break;
+				}
+				break;
+			default:
+				LOG("unknown data %s", ret);
+				break;
+			}	
+		}		
 		else
 		{
 			LOG("Unknown packet: %s", tmpbuf);
@@ -770,6 +993,50 @@ void setting_location(char* databuf)
 		LOG("%s", command);
 		system(command);
 	}
+}
+
+//sdcard event
+void send_guest_server(char* databuf)
+{
+	char buf[32];
+	struct sockaddr_in si_other;
+	int s, slen=sizeof(si_other);
+ 	FILE* fd;
+	char fbuf[16];
+	int port;
+	fd = fopen("/opt/home/sdb_port.txt", "r");
+	LOG("sdb_port.txt fopen fd is %d", fd);
+	if(fd <= 0)
+	{
+		LOG("fopen /opt/home/sdb_port.txt fail");
+		port = 3581;
+	}
+	else
+	{
+		fgets(fbuf, 16, fd);
+		fclose(fd);
+		port = atoi(fbuf) + 3;
+	}
+
+	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
+		  LOG("socket error!");
+	    
+	memset((char *) &si_other, 0, sizeof(si_other));
+	si_other.sin_family = AF_INET;
+	si_other.sin_port = htons(port);
+	if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
+		  fprintf(stderr, "inet_aton() failed\n");
+	}
+
+	memset(buf, '\0', sizeof(buf));
+	sprintf(buf, "4\n%s", databuf);
+	LOG("sendGuestServer msg: %s", buf);
+	if(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
+	{     
+		LOG("sendto error!");
+	}
+	
+	close(s);
 }
 
 int main( int argc , char *argv[])
