@@ -262,7 +262,7 @@ void* mount_sdcard(void* data)
 			system(command);
  
 			system("chmod 777 /opt/storage/sdcard");
-			system("vconftool set -t int memory/Device/Mmc 1 -i -f");
+			system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
@@ -311,7 +311,7 @@ void umount_sdcard(void)
 			LOG( "%s is exist", file_name);
 			system("fuser -kfuc /mnt/mmc");	// kill all processes that are using the sdcard.
 			system("umount /mnt/mmc");
-			system("vconftool set -t int memory/Device/Mmc 0 -i -f");
+			system("vconftool set -t int memory/sysman/mmc 0 -i -f");
 
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
