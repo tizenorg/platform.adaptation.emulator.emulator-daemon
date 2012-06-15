@@ -309,7 +309,7 @@ void umount_sdcard(void)
 		if ( ret == 0 )
 		{
 			LOG( "%s is exist", file_name);
-			system("fuser -kfuc /mnt/mmc");	// kill all processes that are using the sdcard.
+		//	system("fuser -kfuc /mnt/mmc");	// kill all processes that are using the sdcard.
 			system("umount /mnt/mmc");
 			system("vconftool set -t int memory/sysman/mmc 0 -i -f");
 

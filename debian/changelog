@@ -1,3 +1,11 @@
+emuld (0.2.10) unstable; urgency=low
+
+  * deleted process kill when umount
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.10
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Thu, 15 Jun 2012 16:16:00 +0900
+
 emuld (0.2.9) unstable; urgency=low
 
   * modified vconf key path for sdcard supporting
