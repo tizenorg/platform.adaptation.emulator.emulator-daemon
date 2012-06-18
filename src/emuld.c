@@ -977,21 +977,35 @@ void setting_location(char* databuf)
 		LOG("Location Command : %s", command);
 		system(command);
 	} else {
-		memset(latitude, 0, 128);
-		memset(longitude, 0, 128);
-		strcpy(longitude, s+1);
 		*s = '\0';
-		strcpy (latitude, databuf);
+		int mode = atoi(databuf);
+		if(mode == 1) { // NMEA MODE (LOG MODE)
+			sprintf(command, "vconftool set -t string db/location/replay/FileName \"%s\"", s+1);
+			LOG("%s", command);
+			system(command);
+			memset(command, 0, 256);
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1");
+			LOG("%s", command);
+			system(command);
+		} else if(mode == 2) {
+			memset(latitude,  0, 128);
+			memset(longitude, 0, 128);
+			char* t = strchr(s+1, ',');
+			*t = '\0';
+			strcpy(latitude, s+1);
+			strcpy(longitude, t+1);
+			//strcpy(longitude, s+1);
+			//strcpy(latitude, databuf);
+			// Latitude
+			sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s", latitude);
+			LOG("%s", command);
+			system(command);
 
-		// Latitude
-		sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s", latitude);
-		LOG("%s", command);
-		system(command);
-
-		// Longitude
-		sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s", longitude);
-		LOG("%s", command);
-		system(command);
+			// Longitude
+			sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s", longitude);
+			LOG("%s", command);
+			system(command);
+		}
 	}
 }
 
