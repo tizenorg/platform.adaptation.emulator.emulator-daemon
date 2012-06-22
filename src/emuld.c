@@ -753,7 +753,7 @@ void client_recv(int event_fd)
 
 			FILE* fd;
 			fd = fopen("/opt/nfc/sdkMsg", "w");
-			if(fd < 0)
+			if(!fd)
 			{
 				LOG("nfc file open fail!");
 				free(packet);
@@ -1020,7 +1020,7 @@ void send_guest_server(char* databuf)
 	int port;
 	fd = fopen("/opt/home/sdb_port.txt", "r");
 	LOG("sdb_port.txt fopen fd is %d", fd);
-	if(fd <= 0)
+	if(!fd)
 	{
 		LOG("fopen /opt/home/sdb_port.txt fail");
 		port = 3581;

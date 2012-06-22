@@ -1,3 +1,11 @@
+emuld (0.2.12) unstable; urgency=low
+
+  * modified for checking return value of fopen
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.12
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Fri, 22 Jun 2012 18:23:00 +0900
+
 emuld (0.2.10) unstable; urgency=low
 
   * deleted process kill when umount
