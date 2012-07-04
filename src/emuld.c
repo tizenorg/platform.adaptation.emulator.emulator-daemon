@@ -961,17 +961,17 @@ void setting_location(char* databuf)
 		int mode = atoi(databuf);
 		switch (mode) {
 		case 0: // STOP MODE
-			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0");
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
 			break;
 		case 1: // NMEA MODE (LOG MODE)
-			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1");
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
 			break;
 		case 2: // MANUAL MODE
-			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2");
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2 -f");
 			break;
 		default:
 			LOG("error(%s) : stop replay mode", databuf);
-			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0");
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
 			break;
 		}
 		LOG("Location Command : %s", command);
@@ -984,7 +984,7 @@ void setting_location(char* databuf)
 			LOG("%s", command);
 			system(command);
 			memset(command, 0, 256);
-			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1");
+			sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
 			LOG("%s", command);
 			system(command);
 		} else if(mode == 2) {
@@ -997,12 +997,12 @@ void setting_location(char* databuf)
 			//strcpy(longitude, s+1);
 			//strcpy(latitude, databuf);
 			// Latitude
-			sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s", latitude);
+			sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", latitude);
 			LOG("%s", command);
 			system(command);
 
 			// Longitude
-			sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s", longitude);
+			sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", longitude);
 			LOG("%s", command);
 			system(command);
 		}
