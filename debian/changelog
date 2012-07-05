@@ -1,3 +1,11 @@
+emuld (0.2.14) unstable; urgency=low
+
+  * modified for checking resource busy when umount sdcard
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.14
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Thu, 05 Jul 2012 21:03:00 +0900
+
 emuld (0.2.12) unstable; urgency=low
 
   * modified for checking return value of fopen

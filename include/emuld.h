@@ -41,6 +41,8 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <errno.h>
+#include <sys/mount.h>
 
 /* definition */
 #define MAX_CLIENT		10000

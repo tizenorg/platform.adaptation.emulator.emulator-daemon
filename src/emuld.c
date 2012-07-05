@@ -257,26 +257,29 @@ void* mount_sdcard(void* data)
 		if( i != 10 )
 		{
 			LOG( "%s is exist", file_name);
-			memset(command, '\0', sizeof(command));
-			sprintf(command, "mount %s /mnt/mmc", file_name);
-			system(command);
- 
-			system("chmod 777 /opt/storage/sdcard");
-			system("vconftool set -t int memory/sysman/mmc 1 -i -f");
+			ret = mount(file_name, "/mnt/mmc", "ext3", 0, "");
+			LOG("mount ret = %d, errno = %d", ret, errno);
 
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
 			{
 				packet->length = strlen(SDpath);		// length
 				packet->group = 11;				// sdcard
-				packet->action = 1;				// mounted
+				if(ret == 0)
+					packet->action = 1;	// mounted
+				else
+					packet->action = 5;	// failed
 
 				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
 				send(g_sdcard_sockfd, SDpath, packet->length, 0);
+				
+				if(ret == 0)
+				{
+					system("chmod 777 /opt/storage/sdcard");
+					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
+				}
 			}
-			else
-				return;
 
 			break;
 		}
@@ -290,7 +293,7 @@ void* mount_sdcard(void* data)
 	pthread_exit((void *) 0); 
 } 
 
-void umount_sdcard(void)
+int umount_sdcard(void)
 {
 	int ret = -1, i = 0;	
 	char file_name[128];
@@ -309,26 +312,30 @@ void umount_sdcard(void)
 		if ( ret == 0 )
 		{
 			LOG( "%s is exist", file_name);
-		//	system("fuser -kfuc /mnt/mmc");	// kill all processes that are using the sdcard.
-			system("umount /mnt/mmc");
-			system("vconftool set -t int memory/sysman/mmc 0 -i -f");
-
+			ret = umount("/mnt/mmc");
+			LOG("umount ret = %d, errno = %d", ret, errno);
+			
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
 			{
 				packet->length = strlen(SDpath);		// length
 				packet->group = 11;				// sdcard
-				packet->action = 0;				// unmounted
+				if(ret == 0)
+					packet->action = 0;				// unmounted
+				else
+					packet->action = 4;				// failed
 
 				send(g_sdcard_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 				LOG("SDpath is %s", SDpath);
 				send(g_sdcard_sockfd, SDpath, packet->length, 0);
-
-				memset(SDpath, '\0', sizeof(SDpath));
-				sprintf(SDpath, "umounted");
+				
+				if(ret == 0)
+				{
+					memset(SDpath, '\0', sizeof(SDpath));
+					sprintf(SDpath, "umounted");
+					system("vconftool set -t int memory/sysman/mmc 0 -i -f");
+				}				
 			}
-			else
-				return;
 
 			break;
 		}
@@ -337,6 +344,8 @@ void umount_sdcard(void)
 			LOG( "%s is not exist", file_name);
 		}
 	}
+
+	return ret;
 } 
 
 void epoll_init(void)
@@ -816,8 +825,9 @@ void client_recv(int event_fd)
 			switch(mount_param)
 			{
 			case 0:							// umount
-				umount_sdcard();
-				send_guest_server(r_databuf);
+				mount_status = umount_sdcard();
+				if(mount_status == 0)				
+					send_guest_server(r_databuf);
 				break;
 			case 1:							// mount
 				memset(SDpath, '\0', sizeof(SDpath));
