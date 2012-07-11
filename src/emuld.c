@@ -276,8 +276,8 @@ void* mount_sdcard(void* data)
 				
 				if(ret == 0)
 				{
-					system("chmod 777 /opt/storage/sdcard");
 					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
+					system("chmod -R 777 /opt/storage/sdcard");
 				}
 			}
 

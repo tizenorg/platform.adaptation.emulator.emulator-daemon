@@ -1,3 +1,11 @@
+emuld (0.2.15) unstable; urgency=low
+
+  * Permission of sdcard partition changed from 755 to 777.
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.15
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Wed, 11 Jul 2012 19:38:44 +0900
+
 emuld (0.2.14) unstable; urgency=low
 
   * modified for checking resource busy when umount sdcard
