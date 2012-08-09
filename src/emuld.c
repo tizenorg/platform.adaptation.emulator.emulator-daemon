@@ -259,7 +259,7 @@ void* mount_sdcard(void* data)
 			LOG( "%s is exist", file_name);
 			ret = mount(file_name, "/mnt/mmc", "ext3", 0, "");
 			LOG("mount ret = %d, errno = %d", ret, errno);
-
+			
 			LOG("sdcard fd: %d", g_sdcard_sockfd);
 			if(g_sdcard_sockfd != -1)
 			{
@@ -276,8 +276,8 @@ void* mount_sdcard(void* data)
 				
 				if(ret == 0)
 				{
-					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 					system("chmod -R 777 /opt/storage/sdcard");
+					system("vconftool set -t int memory/sysman/mmc 1 -i -f");
 				}
 			}
 
