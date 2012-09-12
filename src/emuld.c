@@ -595,7 +595,11 @@ void client_recv(int event_fd)
 		if(g_sdbd_sockfd != -1)
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
 		else
+		{
+			// for packet clear
+			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
 			return;
+		}
 
 		LOG("recv_len: %d, vmodem data recv buffer: %s", recvd_size, r_databuf);
 

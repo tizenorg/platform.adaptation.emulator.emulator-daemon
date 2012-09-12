@@ -1,6 +1,6 @@
 #git:/slp/pkgs/e/emulator-daemon
 Name: emuld
-Version: 0.2.17
+Version: 0.2.18
 Release: 1
 Summary: emuld is used for communication emulator between and ide.
 License: Apache
