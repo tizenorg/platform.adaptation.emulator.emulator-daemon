@@ -1,3 +1,11 @@
+emuld (0.2.20) unstable; urgency=low
+
+  * add checking routine 'recv' function's return value
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.20
+
+ -- Jihye kim <jihye1128.kim@samsung.com> Mon, 04 Nov 2012 20:00:18 +0900
+
 emuld (0.2.18) unstable; urgency=low
 
   * fixed hang up when sending packet vmodem to eventinjector

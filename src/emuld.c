@@ -490,13 +490,18 @@ int recv_data(int event_fd, char** r_databuf, int size)
 
 	while(recvd_size < size)
 	{
-		memset(r_tmpbuf, '\0', sizeof(char) * size);
+		memset(r_tmpbuf, '\0', sizeof(char) * size + 1);
 		len = recv(event_fd, r_tmpbuf, size - recvd_size, 0);
+		if (len < 0) {
+			break;
+		}
+
 		memcpy((*r_databuf) + recvd_size, r_tmpbuf, len);
 		recvd_size += len;
 		getcnt++;
-		if(getcnt > MAX_GETCNT)
+		if(getcnt > MAX_GETCNT) {
 			break;
+		}
 	}
 	free(r_tmpbuf);
 	r_tmpbuf = NULL;
@@ -548,17 +553,18 @@ void client_recv(int event_fd)
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
-	LOG("start");
+	LOG("start (event fd: %d)", event_fd);
 	/* there need to be more precise code here */ 
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
+	if (event_fd == -1) {
+		return;
+	}
 
 	// vmodem to event injector
 	if(event_fd == g_vm_sockfd)
 	{	
 		recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);
-
-		LOG("recv_len: %d, vmodem header recv buffer: %s", recvd_size, r_databuf);
-
+		LOG("receive size: %d", recvd_size);
 		if(recvd_size <= 0)
 		{
 			free(r_databuf);
@@ -572,6 +578,7 @@ void client_recv(int event_fd)
 			return;
 		}
 
+		LOG("vmodem header recv buffer: %s", r_databuf);
 		memcpy((void*)packet, (void*)r_databuf, sizeof(char) * HEADER_SIZE);
 
 		LOG("first packet of vmodem to event injector %s", r_databuf);
@@ -620,10 +627,7 @@ void client_recv(int event_fd)
 		/* read from socket */
 		// read identifier
 		recvd_size = recv_data(event_fd, &r_databuf, ID_SIZE);
-
-		LOG("Something may be added in the data end, but it does not matter.");
-		LOG("identifier: %s", r_databuf);
-
+		LOG("receive size: %d", recvd_size);
 		if( recvd_size <= 0 )
 		{
 			free(r_databuf);
@@ -636,6 +640,9 @@ void client_recv(int event_fd)
 
 			return;
 		}
+
+		LOG("Something may be added in the data end, but it does not matter.");
+		LOG("identifier: %s", r_databuf);
 
 		memset(tmpbuf, '\0', sizeof(tmpbuf));
 		parse_len = parse_val(r_databuf, 0x0a, tmpbuf);
@@ -683,9 +690,6 @@ void client_recv(int event_fd)
 
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
 
-			LOG("Something may be added in the data end, but it does not matter.");
-			LOG("telephony data recv buffer: %s", r_databuf);
-
 			if(recvd_size <= 0)
 			{
 				free(r_databuf);
@@ -693,9 +697,12 @@ void client_recv(int event_fd)
 				free(packet);
 				packet = NULL;
 				return;
-			}
-			else
+			} else {
+				LOG("Something may be added in the data end, but it does not matter.");
+				LOG("telephony data recv buffer: %s", r_databuf);
+
 				len = send(g_vm_sockfd, r_databuf, packet->length, 0);
+			}
 		}
 		else if(strncmp(tmpbuf, "sensor", 6) == 0)
 		{
