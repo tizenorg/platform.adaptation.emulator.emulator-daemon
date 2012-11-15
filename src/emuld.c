@@ -33,7 +33,7 @@ compiler Gcc: 3.4.3.
 License: GNU General Public License   
 
 ------------------------------------------------------------------*/
-
+#include "emuld_common.h"
 #include "emuld.h"
 
 /* global definition */
@@ -48,6 +48,7 @@ int g_vm_sockfd; 		/* vmodem fd */
 int g_sdbd_sockfd = -1;		/* sdbd fd */
 static int g_vm_connect_status;	/* connection status between emuld and vmodem  */
 int g_sdcard_sockfd = -1;
+int g_get_status_sockfd = -1;   /* return status of devive to the injector */
 
 pthread_t tid[MAX_CLIENT + 1];
 
@@ -66,15 +67,6 @@ int g_epoll_fd;                		/* epoll fd */
 
 struct epoll_event g_events[MAX_EVENTS]; 
 
-// for vmodem packets
-typedef struct // lxt_message
-{
-	unsigned short length;
-	unsigned char group;
-	unsigned char action;
-	void *data; 
-} LXT_MESSAGE;
-
 void TAPIMessageInit(LXT_MESSAGE *packet)
 {       
 	packet->length = 0;
@@ -84,7 +76,10 @@ void TAPIMessageInit(LXT_MESSAGE *packet)
 }
 
 char SDpath[256];
-       
+
+unsigned char ActionID = 0;
+char GetBuffer[256];
+void setting_device(); 
 /*--------------------------------------------------------------*/
 /* FUNCTION PART 
    ---------------------------------------------------------------*/
@@ -718,8 +713,20 @@ void client_recv(int event_fd)
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("sensor data recv buffer: %s", r_databuf);
 
-			if(sendto(uSensordFd, r_databuf, packet->length, 0, (struct sockaddr*)&si_sensord_other, sslen) == -1)     
+			if (packet->group == STATUS) {
+				g_get_status_sockfd = event_fd;
+				ActionID = packet->action;
+				memset(GetBuffer, '\0', sizeof(GetBuffer));
+				strcpy(GetBuffer, r_databuf);
+				LOG("GetBuffer is %s", GetBuffer);
+
+				if(pthread_create(&tid[2], NULL, setting_device, NULL) != 0) {
+					LOG("pthread create fail!");
+				}
+			}
+			else if(sendto(uSensordFd, r_databuf, packet->length, 0, (struct sockaddr*)&si_sensord_other, sslen) == -1) {     
 				LOG("sendto error!");
+			}
 		}
 		else if(strncmp(tmpbuf, "location", 8) == 0)
 		{
@@ -735,7 +742,19 @@ void client_recv(int event_fd)
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("location data recv buffer: %s", r_databuf);
 
-			setting_location(r_databuf);
+			if (packet->group == STATUS) {
+				g_get_status_sockfd = event_fd;
+				ActionID = packet->action;
+				memset(GetBuffer, '\0', sizeof(GetBuffer));
+				strcpy(GetBuffer, r_databuf);
+				LOG("GetBuffer is %s", GetBuffer);
+
+				if(pthread_create(&tid[2], NULL, setting_device, NULL) != 0) {
+					LOG("pthread create fail!");
+				}
+			} else {
+				setting_location(r_databuf);
+			}
 		}
 		else if(strncmp(tmpbuf, "nfc", 3) == 0)
 		{
@@ -968,6 +987,113 @@ void end_server(int sig)
 	LOG("[SHUTDOWN] Server closed by signal %d",sig);
 
 	exit(0);
+}
+
+void setting_device()
+{
+	pthread_detach(pthread_self());
+
+	char* msg = 0;
+	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+
+	switch(ActionID)
+	{
+	case BATTERY_LEVEL:
+		msg = get_battery_level((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting battery level");
+		}
+	break;
+	case BATTERY_CHARGER:
+		msg = get_battery_charger((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting battery charger state");
+		}
+	break;
+	case USB_STATUS:
+		msg = get_usb_status((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting usb status");
+		}
+	break;
+	case EARJACK_STATUS:
+		msg = get_earjack_status((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting earjack status");
+		}
+	break;
+	case RSSI_LEVEL:
+		msg = get_rssi_level((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting rssi level");
+		}
+	break;
+	case ACCEL_VALUE:
+		msg = get_acceleration_value((void*)packet);
+		if (msg == 0) {
+			LOG("falied getting acceleration value");
+		}
+	break;
+	case GYRO_VALUE:
+		msg = get_gyroscope_value((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting gyroscope value");
+		}
+	break;
+	case MAG_VALUE:
+		msg = get_magnetic_value((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting magnetic value");
+		}
+	break;
+	case LIGHT_VALUE:
+		msg = get_light_level((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting light level");
+		}
+	break;
+	case PROXI_VALUE:
+		msg = get_proximity_status((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting proximity status");
+		}
+	break;
+	case MOTION_VALUE:
+		LOG("not support getting motion value");
+	break;
+	case LOCATION_STATUS:
+		msg = get_location_status((void*)packet);
+		if (msg == 0) {
+			LOG("failed getting location status");
+		}
+	break;
+	default:
+		//TODO
+	break;
+	}
+
+	if (g_get_status_sockfd != -1) {
+		if (msg != 0) {
+			LOG("send data to injector");
+		} else {
+			LOG("send error message to injector");
+			memset(packet, 0, sizeof(LXT_MESSAGE));
+			packet->length = 0;
+			packet->group  = STATUS;
+			packet->action = ActionID;
+		}
+		send(g_get_status_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
+		if (packet->length != 0) {
+			send(g_get_status_sockfd, msg, packet->length, 0);
+		}
+	}
+
+	if(msg != 0) {
+		free(msg);
+	}
+	free(packet);
+
+	pthread_exit((void *) 0); 
 }
 
 // location event
