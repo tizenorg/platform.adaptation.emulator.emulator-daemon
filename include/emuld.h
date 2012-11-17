@@ -5,7 +5,6 @@
  *
  * Contact: 
  * Sungmin Ha <sungmin82.ha@samsung.com>
- * DongKyun Yun <dk77.yun@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");

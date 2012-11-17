@@ -5,7 +5,6 @@
  *
  * Contact: 
  * Sungmin Ha <sungmin82.ha@samsung.com>
- * DongKyun Yun <dk77.yun@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -765,44 +764,40 @@ void client_recv(int event_fd)
 				r_databuf = NULL;
                         	return;
                 	}
-			/*
-			LOG("nfc packet length r_databuf: %s", r_databuf);
 
-               		memset(tmpbuf, '\0', sizeof(tmpbuf));
-                	parse_len = parse_val(r_databuf, 0x0a, tmpbuf);
+			memcpy((void*)packet, (void*)r_databuf, HEADER_SIZE);
+			LOG("nfc packet_length: %d", packet->length);
 
-			int length = atoi(tmpbuf);
-			*/
-
-			//byte to int
-			int length = ((r_databuf[0] & 0xff) << 24 | (r_databuf[1] & 0xff) << 16
-					| (r_databuf[2] & 0xff) << 8 | (r_databuf[3] & 0xff)) ;
-                	LOG("nfc packet converted length: %d", length);
-                	free(r_databuf);
+			free(r_databuf);
 			r_databuf = NULL;
-
-			recvd_size = recv_data(event_fd, &r_databuf, length);
-			/*
-			char* strbuf = NULL;
-			strbuf = (char*)malloc(length + 1);
-			memset(strbuf, '\0', length + 1);
-			memcpy(strbuf, r_databuf, length);
-			*/
+			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
 			LOG("nfc data recv buffer: %s", r_databuf);
 
-			FILE* fd;
-			fd = fopen("/opt/nfc/sdkMsg", "w");
-			if(!fd)
-			{
-				LOG("nfc file open fail!");
-				free(packet);
-				packet = NULL;
-				return;
+			if (packet->group == STATUS) {
+				g_get_status_sockfd = event_fd;
+				ActionID = packet->action;
+				memset(GetBuffer, '\0', sizeof(GetBuffer));
+				strcpy(GetBuffer, r_databuf);
+				LOG("GetBuffer is %s", GetBuffer);
+
+				if(pthread_create(&tid[2], NULL, setting_device, NULL) != 0) {
+					LOG("pthread create fail!");
+				}
+			} else {
+				FILE* fd;
+				fd = fopen("/opt/nfc/sdkMsg", "w");
+				if(!fd)
+				{
+					LOG("nfc file open fail!");
+					free(packet);
+					packet = NULL;
+					return;
+				}
+				fprintf(fd, "%s", r_databuf);
+				fclose(fd);
+				//free(strbuf);
+				//strbuf = NULL;
 			}
-			fprintf(fd, "%s", r_databuf);
-			fclose(fd);
-			//free(strbuf);
-			//strbuf = NULL;
 		}
 		else if(strncmp(tmpbuf, "system", 6) == 0)
 		{
@@ -1065,6 +1060,12 @@ void setting_device()
 		msg = get_location_status((void*)packet);
 		if (msg == 0) {
 			LOG("failed getting location status");
+		}
+	break;
+	case NFC_STATUS:
+		msg = get_nfc_status((void*)packet);
+		if (msg ==0) {
+			LOG("failed getting nfc status");
 		}
 	break;
 	default:

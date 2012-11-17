@@ -1,3 +1,29 @@
+/*
+ * emulator-daemon
+ *
+ * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
+ *
+ * Contact: 
+ * Sungmin Ha <sungmin82.ha@samsung.com>
+ * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * 
+ * Contributors:
+ * - S-Core Co., Ltd
+ *
+ */
+
 //#include <vconf.h>
 #include "emuld_common.h"
 
@@ -344,6 +370,27 @@ char* get_location_status(void* p)
 	packet->length = strlen(message);
 	packet->group  = STATUS;
 	packet->action = LOCATION_STATUS;
+
+	return message;
+}
+
+char* get_nfc_status(void* p)
+{
+	FILE* fd = fopen("/opt/nfc/sdkMsg", "r");
+	if(!fd)
+	{
+		return 0;
+	}
+
+	message = (char*)malloc(5000);
+	fscanf(fd, "%s\n", message);
+	fclose(fd);
+
+	LXT_MESSAGE* packet = p;
+	memset(packet, 0, sizeof(LXT_MESSAGE));
+	packet->length = strlen(message);
+	packet->group  = STATUS;
+	packet->action = NFC_STATUS;
 
 	return message;
 }
