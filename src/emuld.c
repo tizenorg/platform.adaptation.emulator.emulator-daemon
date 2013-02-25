@@ -1,9 +1,10 @@
-/*
+/* -*- Mode: C; c-basic-offset: 8; indent-tabs-mode: t -*-
  * emulator-daemon
  *
  * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
  *
- * Contact: 
+ * Contact:
+ * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
@@ -199,7 +200,7 @@ int is_mounted()
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/mmcblk%d", i);
+		sprintf(file_name, "/dev/emul_mmcblk%d", i);
 		ret = access( file_name, F_OK );
 		if( ret == 0 )
 		{
@@ -233,7 +234,7 @@ void* mount_sdcard(void* data)
 	{	
 		for(i = 0; i < 10; i++)
 		{
-			sprintf(file_name, "/dev/mmcblk%d", i);
+			sprintf(file_name, "/dev/emul_mmcblk%d", i);
 			ret = access( file_name, F_OK );
 			if( ret == 0 )
 			{
@@ -293,6 +294,9 @@ int umount_sdcard(void)
 	char file_name[128];
 	memset(file_name, '\0', sizeof(file_name));
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	if(packet == NULL){
+	    return ret;
+	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
 	LOG("start sdcard umount");
@@ -301,7 +305,7 @@ int umount_sdcard(void)
 
 	for(i = 0; i < 10; i++)
 	{
-		sprintf(file_name, "/dev/mmcblk%d", i);
+		sprintf(file_name, "/dev/emul_mmcblk%d", i);
 		ret = access( file_name, F_OK);
 		if ( ret == 0 )
 		{
@@ -339,6 +343,10 @@ int umount_sdcard(void)
 		}
 	}
 
+	if(packet){
+	    free(packet);
+	    packet = NULL;
+	}
 	return ret;
 } 
 
@@ -397,7 +405,10 @@ void userpool_add(int cli_fd, unsigned short cli_port)
 	{
 		if(g_client[i].cli_sockfd == -1) break;
 	}
-	if( i >= MAX_CLIENT ) close(cli_fd);
+	if( i >= MAX_CLIENT ){ 
+	    close(cli_fd);
+	    return;
+	}
 
 	LOG("g_client[%d].cli_port: %d", i, cli_port);
 
@@ -438,38 +449,78 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
 	return 0;
 }
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
 void udp_init(void)
 {
+	char emul_ip[HOST_NAME_MAX+1];
+	struct addrinfo *res;
+	struct addrinfo hints;
+	int rc;
+
 	LOG("start");
-	char* emul_ip = getenv("HOSTNAME");
-	if(emul_ip == NULL)
+
+	memset(emul_ip, 0, sizeof(emul_ip));
+	if (gethostname(emul_ip, sizeof(emul_ip)) < 0)
 	{
-		LOG("emul_ip is null");
+		LOG("gethostname(): %s", strerror(errno));
 		assert(0);
 	}
 
-	if ((uSensordFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family=AF_INET;
+	hints.ai_socktype=SOCK_DGRAM;
+	hints.ai_protocol=IPPROTO_UDP;
+
+	if ((rc=getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res)) != 0)
+	{
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(sensord): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(sensord): %s", gai_strerror(rc));
+		assert(0);
+	}
+
+	if ((uSensordFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
+	if (res->ai_addrlen > sizeof(si_sensord_other))
+	{
+		LOG("sockaddr structure too big");
+		/* XXX: if you `return' remember to clean up */
+		assert(0);
+	}
 	memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
-	si_sensord_other.sin_family = AF_INET;
-	si_sensord_other.sin_port = htons(sensord_port);
-	if (inet_aton(emul_ip, &si_sensord_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
+
+	if ((rc=getaddrinfo(emul_ip, STR(GPSD_PORT), &hints, &res)) != 0)
+	{
+		if (rc == EAI_SYSTEM)
+			LOG("getaddrinfo(gpsd): %s", strerror(errno));
+		else
+			LOG("getaddrinfo(gpsd): %s", gai_strerror(rc));
+		assert(0);
 	}
 
-	if ((uGpsdFd=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
+	if ((uGpsdFd=socket(res->ai_family, res->ai_socktype, res->ai_protocol))==-1){
 		fprintf(stderr, "socket error!\n");
 	}
 
-	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
-	si_gpsd_other.sin_family = AF_INET;
-	si_gpsd_other.sin_port = htons(gpsd_port);
-	if (inet_aton(emul_ip, &si_gpsd_other.sin_addr)==0) {
-		fprintf(stderr, "inet_aton() failed\n");
+	if (res->ai_addrlen > sizeof(si_gpsd_other))
+	{
+		LOG("sockaddr structure too big");
+		assert(0);
 	}
+	memset((char *) &si_gpsd_other, 0, sizeof(si_gpsd_other));
+	memcpy((char *) &si_gpsd_other, res->ai_addr, res->ai_addrlen);
+	freeaddrinfo(res);
 }
+
+#undef STR_HELPER
+#undef STR
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {
@@ -479,7 +530,15 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	char* r_tmpbuf = NULL;
 
 	r_tmpbuf = (char*)malloc(sizeof(char) * size + 1);
+	if(r_tmpbuf == NULL){
+	    return -1;
+	}
+
 	*r_databuf = (char*)malloc(sizeof(char) * size + 1);
+	if(*r_databuf == NULL){
+	    free(r_tmpbuf);
+	    return -1;
+	}
 	memset(*r_databuf, '\0', sizeof(char) * size + 1);
 
 	while(recvd_size < size)
@@ -545,12 +604,18 @@ void client_recv(int event_fd)
 	char tmpbuf[48];
 	int len, recvd_size, parse_len = 0;
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+	if (packet == NULL)
+	{
+	    return;
+	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
 	LOG("start (event fd: %d)", event_fd);
 	/* there need to be more precise code here */ 
 	/* for example , packet check(protocol needed) , real recv size check , etc. */
 	if (event_fd == -1) {
+		free(packet);
+		packet = NULL;
 		return;
 	}
 
@@ -581,8 +646,11 @@ void client_recv(int event_fd)
 		
 		if(g_sdbd_sockfd != -1)
 			len = send(g_sdbd_sockfd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
-		else
+		else {
+			free(packet);
+			packet = NULL;
 			return;
+		}
 
 		LOG("send_len: %d, next packet length: %d", len, packet->length);
 
@@ -626,6 +694,8 @@ void client_recv(int event_fd)
 		{
 			free(r_databuf);
 			r_databuf = NULL;
+			free(packet);
+			packet = NULL;
 			LOG("close event_fd: %d", event_fd);
 			userpool_delete(event_fd);
 			close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
@@ -651,8 +721,11 @@ void client_recv(int event_fd)
 		if(strncmp(tmpbuf, "telephony", 9) == 0)
 		{
 			g_sdbd_sockfd = event_fd;
-			if(g_vm_connect_status != 1)	// The connection is lost with vmodem
+			if(g_vm_connect_status != 1) {	// The connection is lost with vmodem
+				free(packet);
+				packet = NULL;
 				return;
+			}
 
 			recvd_size = recv_data(event_fd, &r_databuf, HEADER_SIZE);			
 			len = send(g_vm_sockfd, r_databuf, HEADER_SIZE, 0);
@@ -762,6 +835,8 @@ void client_recv(int event_fd)
                 	{
                         	free(r_databuf);
 				r_databuf = NULL;
+				free(packet);
+				packet = NULL;
                         	return;
                 	}
 
@@ -771,6 +846,11 @@ void client_recv(int event_fd)
 			free(r_databuf);
 			r_databuf = NULL;
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+			if(r_databuf == NULL){
+			    free(packet);
+			    packet = NULL;
+			    return;
+			}
 			LOG("nfc data recv buffer: %s", r_databuf);
 
 			if (packet->group == STATUS) {
@@ -789,6 +869,8 @@ void client_recv(int event_fd)
 				if(!fd)
 				{
 					LOG("nfc file open fail!");
+					free(r_databuf);
+					r_databuf = NULL;
 					free(packet);
 					packet = NULL;
 					return;
@@ -833,6 +915,23 @@ void client_recv(int event_fd)
 			free(r_databuf);
 			r_databuf = NULL;
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
+			if(recvd_size <= 0){
+				LOG("client_recv: recv_data err");
+				if(r_databuf) {
+				    	free(r_databuf);
+					r_databuf = NULL;
+				}
+				if(packet) {
+					free(packet);
+					packet = NULL;
+				}
+				LOG("close event_fd: %d", event_fd);
+				userpool_delete(event_fd);
+				close(event_fd); /* epoll set fd also deleted automatically by this call as a spec */
+				if(event_fd == g_sdbd_sockfd)
+					g_sdbd_sockfd = -1;
+				return;
+			}
 
 			LOG("Something may be added in the data end, but it does not matter.");
 			LOG("sdcard data recv buffer: %s", r_databuf);
@@ -868,6 +967,9 @@ void client_recv(int event_fd)
 				mount_status = is_mounted();
 
 				LXT_MESSAGE* mntData = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+				if(mntData == NULL){
+				    break;
+				}
 				memset(mntData, 0, sizeof(LXT_MESSAGE));
 
 				mntData->length = strlen(SDpath);	// length
@@ -894,6 +996,7 @@ void client_recv(int event_fd)
 				default:
 					break;
 				}
+				free(mntData);
 				break;
 			default:
 				LOG("unknown data %s", ret);
@@ -1181,7 +1284,10 @@ void send_guest_server(char* databuf)
 	}
 
 	if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1)
-		  LOG("socket error!");
+	{
+		LOG("socket error!");
+		return;
+	}
 	    
 	memset((char *) &si_other, 0, sizeof(si_other));
 	si_other.sin_family = AF_INET;
