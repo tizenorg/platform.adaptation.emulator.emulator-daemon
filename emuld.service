@@ -1,0 +1,10 @@
+[Unit]
+Description=Daemon for emulator
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/emuld
+
+[Install]
+WantedBy=emulator.target
+

@@ -1,0 +1,3 @@
+/usr/bin/emuld &
+/usr/sbin/sensord &
+/etc/emulator/sensor_setting.sh &
