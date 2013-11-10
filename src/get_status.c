@@ -25,9 +25,10 @@
  *
  */
 
-//#include <vconf.h>
 #include "emuld.h"
 #include "emuld_common.h"
+
+#include "vconf/vconf.h"
 
 static int file_read(FILE* fd)
 {

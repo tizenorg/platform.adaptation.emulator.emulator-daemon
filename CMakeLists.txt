@@ -31,7 +31,7 @@ ADD_DEFINITIONS("-DTARGET -DHWREV_CHECK")
 
 #add_definitions(-D_ESTIMATE_PERFORMANCE)
 #add_definitions(-D_DEFAULT_FONT_NAME="Vera")
-add_definitions(-Wall -O3 -omit-frame-pointer)
+add_definitions(-Werror -Wall -O3 -omit-frame-pointer)
 #add_definitions(-Wall -g -D_DEBUG)
 add_definitions(-Iinclude)
 ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.c src/get_status.c)
