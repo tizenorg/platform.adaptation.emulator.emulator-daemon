@@ -8,6 +8,7 @@ Group: SDK/Other
 Source1001: packaging/emuld.manifest
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
+BuildRequires: pkgconfig(pmapi)
 
 %description
 A emulator daemon is used for communication emulator between and ide.
@@ -55,8 +56,6 @@ rm -rf install_manifest.txt
 chmod 770 %{_prefix}/bin/emuld
 mkdir -p /opt/nfc
 touch /opt/nfc/sdkMsg
-
-%postun
 
 %files
 %defattr(-,root,root,-)

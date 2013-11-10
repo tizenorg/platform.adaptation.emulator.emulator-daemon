@@ -37,6 +37,6 @@ add_definitions(-Iinclude)
 ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.c src/get_status.c)
 
 target_link_libraries(${PROJECT_NAME} ${rpkgs_LDFLAGS} ${GLES_LDFLAGS})
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf" )
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf -lpmapi" )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)

@@ -38,20 +38,25 @@ License: GNU General Public License
 #include "emuld_common.h"
 #include "emuld.h"
 
+#include "pmapi.h"
+
 #define MAX_CONNECT_TRY_COUNT	(60 * 3)
+
+#define PMAPI_RETRY_COUNT	3
+
 /* global definition */
 unsigned short sdbd_port = SDBD_PORT;
 unsigned short vmodem_port = VMODEM_PORT;
 unsigned short gpsd_port = GPSD_PORT;
 unsigned short sensord_port = SENSORD_PORT;
 
-int g_svr_sockfd;              	/* global server socket fd */
-int g_svr_port;                	/* global server port number */
-int g_vm_sockfd; 		/* vmodem fd */
-int g_sdbd_sockfd = -1;		/* sdbd fd */
+int g_svr_sockfd;				/* global server socket fd */
+int g_svr_port;					/* global server port number */
+int g_vm_sockfd;		        /* vmodem fd */
+int g_sdbd_sockfd = -1;		    /* sdbd fd */
 static int g_vm_connect_status;	/* connection status between emuld and vmodem  */
 int g_sdcard_sockfd = -1;
-int g_get_status_sockfd = -1;   /* return status of devive to the injector */
+int g_get_status_sockfd = -1;	/* return status of devive to the injector */
 
 pthread_t tid[MAX_CLIENT + 1];
 
@@ -62,18 +67,18 @@ struct sockaddr_in si_sensord_other, si_gpsd_other;
 int uSensordFd, uGpsdFd, sslen=sizeof(si_sensord_other), sglen=sizeof(si_gpsd_other);
 
 struct {
-	int  cli_sockfd;  				/* client socket fds */
-	unsigned short cli_port;              /* client connection port */
+	int  cli_sockfd;			/* client socket fds */
+	unsigned short cli_port;    /* client connection port */
 } g_client[MAX_CLIENT];
 
-int g_epoll_fd;                		/* epoll fd */
+int g_epoll_fd; 				/* epoll fd */
 
 static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
 
 struct epoll_event g_events[MAX_EVENTS]; 
 
 void TAPIMessageInit(LXT_MESSAGE *packet)
-{       
+{
 	packet->length = 0;
 	packet->group = 0;
 	packet->action = 0;
@@ -356,7 +361,7 @@ int umount_sdcard(void)
 	memset(file_name, '\0', sizeof(file_name));
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 	if(packet == NULL){
-	    return ret;
+		return ret;
 	}
 	memset(packet, 0, sizeof(LXT_MESSAGE));
 
@@ -397,8 +402,8 @@ int umount_sdcard(void)
 	}
 
 	if(packet){
-	    free(packet);
-	    packet = NULL;
+		free(packet);
+		packet = NULL;
 	}
 	return ret;
 }
@@ -459,8 +464,8 @@ void userpool_add(int cli_fd, unsigned short cli_port)
 		if(g_client[i].cli_sockfd == -1) break;
 	}
 	if( i >= MAX_CLIENT ){
-	    close(cli_fd);
-	    return;
+		close(cli_fd);
+		return;
 	}
 
 	LOG("g_client[%d].cli_port: %d", i, cli_port);
@@ -586,15 +591,15 @@ int recv_data(int event_fd, char** r_databuf, int size)
 	r_tmpbuf = (char*)malloc(alloc_size);
 	if(r_tmpbuf == NULL)
 	{
-	    return -1;
+		return -1;
 	}
 
 	char* databuf = (char*)malloc(alloc_size);
 	if(databuf == NULL)
 	{
-	    free(r_tmpbuf);
-	    *r_databuf = NULL;
-	    return -1;
+		free(r_tmpbuf);
+		*r_databuf = NULL;
+		return -1;
 	}
 
 	memset(databuf, '\0', alloc_size);
@@ -714,7 +719,7 @@ void client_recv(int event_fd)
 
 	LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 	if (!packet)
-	    return;
+		return;
 
 	memset(packet, 0, sizeof(*packet));
 
@@ -937,9 +942,9 @@ void client_recv(int event_fd)
 			r_databuf = NULL;
 			recvd_size = recv_data(event_fd, &r_databuf, packet->length);
 			if(r_databuf == NULL){
-			    free(packet);
-			    packet = NULL;
-			    return;
+				free(packet);
+				packet = NULL;
+				return;
 			}
 			LOG("nfc data recv buffer: %s", r_databuf);
 
@@ -1007,7 +1012,7 @@ void client_recv(int event_fd)
 			if(recvd_size <= 0){
 				LOG("client_recv: recv_data err");
 				if(r_databuf) {
-				    	free(r_databuf);
+						free(r_databuf);
 					r_databuf = NULL;
 				}
 				if(packet) {
@@ -1057,7 +1062,7 @@ void client_recv(int event_fd)
 
 				LXT_MESSAGE* mntData = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 				if(mntData == NULL){
-				    break;
+					break;
 				}
 				memset(mntData, 0, sizeof(LXT_MESSAGE));
 
@@ -1353,6 +1358,18 @@ void setting_location(char* databuf)
 	}
 }
 
+void set_lock_state() {
+	int i = 0;
+	// Now we blocking to enter "SLEEP".
+	while (i < PMAPI_RETRY_COUNT && pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0) == -1) {
+		++i;
+		sleep(10);
+	}
+	if (i == PMAPI_RETRY_COUNT) {
+		fprintf(stderr, "Emulator Daemon: Failed to call pm_lock_state().\n");
+	}
+}
+
 int main( int argc , char *argv[])
 {
 	if(log_print == 1)
@@ -1385,7 +1402,7 @@ int main( int argc , char *argv[])
 	/* init server */
 	init_server0(g_svr_port);
 
-	epoll_init();    /* epoll initialize  */
+	epoll_init();	 /* epoll initialize  */
 
 	set_vm_connect_status(0);
 
@@ -1393,6 +1410,8 @@ int main( int argc , char *argv[])
 		LOG("pthread create fail!");
 
 	udp_init();
+
+	set_lock_state();
 
 	bool is_exit = false;
 	/* main loop */
@@ -1402,8 +1421,8 @@ int main( int argc , char *argv[])
 	} /* infinite loop while end. */
 
 	if(pthread_mutex_destroy(&mutex_vmconnect)) {
-        // TODO: error...
-    }
+		// TODO: error...
+	}
 
 	fprintf(stderr, "emuld exit\n");
 
