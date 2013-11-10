@@ -33,10 +33,10 @@ compiler Gcc: 3.4.3.
 License: GNU General Public License   
 
 ------------------------------------------------------------------*/
-#include "emuld_common.h"
-#include "emuld.h"
 #include <error.h>
 
+#include "emuld_common.h"
+#include "emuld.h"
 
 #define MAX_CONNECT_TRY_COUNT	(60 * 3)
 /* global definition */
@@ -192,7 +192,7 @@ void* init_vm_connect(void* data)
 	struct sockaddr_in vm_addr;
 	int ret = -1;	
 	//int connect_try_count = 0;
-	bool is_connected = false;
+	//bool is_connected = false;
 
 	set_vm_connect_status(0);
 
@@ -225,7 +225,7 @@ void* init_vm_connect(void* data)
 		}
 		else
 		{
-			is_connected = true;
+			//is_connected = true;
 		}
 		//connect_try_count ++;
 	}
@@ -1355,8 +1355,6 @@ void setting_location(char* databuf)
 
 int main( int argc , char *argv[])
 {
-	int state;
-
 	if(log_print == 1)
 	{
 		// for emuld log file
@@ -1403,7 +1401,9 @@ int main( int argc , char *argv[])
 		is_exit = server_process();  /* accept process. */
 	} /* infinite loop while end. */
 
-	state = pthread_mutex_destroy(&mutex_vmconnect);
+	if(pthread_mutex_destroy(&mutex_vmconnect)) {
+        // TODO: error...
+    }
 
 	fprintf(stderr, "emuld exit\n");
 

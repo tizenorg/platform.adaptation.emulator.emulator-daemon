@@ -7,7 +7,7 @@ Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
 Source1001: packaging/emuld.manifest
 BuildRequires: cmake
-BuildRequires:  pkgconfig(vconf)
+BuildRequires: pkgconfig(vconf)
 
 %description
 A emulator daemon is used for communication emulator between and ide.
