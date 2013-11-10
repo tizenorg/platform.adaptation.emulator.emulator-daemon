@@ -1,15 +1,16 @@
-#git:/slp/pkgs/e/emulator-daemon
 Name: emuld
-Version: 0.2.41
-Release: 1
-Summary: emuld is used for communication emulator between and ide.
-License: Apache
+Version: 0.3.0
+Release: 0
+Summary: Emulator daemon
+License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
+Group: SDK/Other
 Source1001: packaging/emuld.manifest
 BuildRequires: cmake
 BuildRequires:  pkgconfig(vconf)
 
 %description
+A emulator daemon is used for communication emulator between and ide.
 
 %prep
 %setup -q
@@ -31,14 +32,14 @@ cp emuld.service %{buildroot}/usr/lib/systemd/system/.
 ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
 
 #for legacy init
-if [ ! -d %{buildroot}/etc/init.d ]; then
-    mkdir -p %{buildroot}/etc/init.d
-fi
-cp emuld %{buildroot}/etc/init.d/.
-if [ ! -d %{buildroot}/etc/rc.d/rc3.d ]; then
-    mkdir -p %{buildroot}/etc/rc.d/rc3.d
-fi
-ln -s /etc/init.d/emuld %{buildroot}/etc/rc.d/rc3.d/S04emuld
+#if [ ! -d %{buildroot}/etc/init.d ]; then
+#    mkdir -p %{buildroot}/etc/init.d
+#fi
+#cp emuld %{buildroot}/etc/init.d/.
+#if [ ! -d %{buildroot}/etc/rc.d/rc3.d ]; then
+#    mkdir -p %{buildroot}/etc/rc.d/rc3.d
+#fi
+#ln -s /etc/init.d/emuld %{buildroot}/etc/rc.d/rc3.d/S04emuld
 
 mkdir -p %{buildroot}/usr/share/license
 cp LICENSE %{buildroot}/usr/share/license/%{name}
@@ -51,10 +52,10 @@ rm -rf CMakeCache.txt
 rm -rf CMakeFiles
 rm -rf cmake_install.cmake
 rm -rf Makefile
-rm -rf install_manifes.txt
+rm -rf install_manifest.txt
 
 %post
-chmod 777 /usr/bin/emuld
+chmod 770 %{_prefix}/bin/emuld
 mkdir -p /opt/nfc
 touch /opt/nfc/sdkMsg
 
@@ -66,7 +67,7 @@ touch /opt/nfc/sdkMsg
 /usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service
 /usr/lib/systemd/system/emulator.target.wants/emuld.service
-/etc/init.d/emuld
-/etc/rc.d/rc3.d/S04emuld
+#/etc/init.d/emuld
+#/etc/rc.d/rc3.d/S04emuld
 
 %changelog
