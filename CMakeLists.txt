@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.6)
-project(emuld C)
+project(emuld CXX)
 
 # to install pkgconfig setup file.
 SET(EXEC_PREFIX "\${prefix}")
@@ -34,7 +34,7 @@ ADD_DEFINITIONS("-DTARGET -DHWREV_CHECK")
 add_definitions(-Werror -Wall -O3 -omit-frame-pointer)
 #add_definitions(-Wall -g -D_DEBUG)
 add_definitions(-Iinclude)
-ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.c src/get_status.c)
+ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.cpp src/evdi.cpp src/emuld_proc.cpp src/client.cpp src/get_status.cpp src/log.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${rpkgs_LDFLAGS} ${GLES_LDFLAGS})
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf -lpmapi" )
