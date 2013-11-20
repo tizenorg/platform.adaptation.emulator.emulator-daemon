@@ -65,6 +65,7 @@
 #define SDBD_PORT		26101
 #define DEFAULT_PORT		3577
 #define VMODEM_PORT		3578
+#define SAP_PORT		9999
 #define GPSD_PORT		3579
 #define SENSORD_PORT		3580
 #define SRV_IP 			"10.0.2.2"
@@ -81,9 +82,10 @@ enum
 	fdtype_server = 0,
 	fdtype_device = 1,
 	fdtype_vmodem = 2,
-	fdtype_ij	= 3,
-	fdtype_sensor = 4, //udp
-	fdtype_max =5
+	fdtype_sap    = 3,
+	fdtype_ij	  = 4,
+	fdtype_sensor = 5, //udp
+	fdtype_max    = 6
 };
 
 extern pthread_t tid[MAX_CLIENT + 1];
@@ -92,6 +94,7 @@ extern int g_fd[fdtype_max];
 
 
 #define IJTYPE_TELEPHONY		"telephony"
+#define IJTYPE_SAP		        "sap"
 #define IJTYPE_SDCARD			"sdcard"
 
 bool epoll_ctl_add(const int fd);
@@ -120,7 +123,11 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 void set_vm_connect_status(const int v);
 bool is_vm_connected(void);
 
+void set_sap_connect_status(const int v);
+bool is_sap_connected(void);
+
 void* init_vm_connect(void* data);
+void* init_sap_connect(void* data);
 
 
 
@@ -210,6 +217,7 @@ void* setting_device(void* data);
 
 // msg proc
 bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
+bool msgproc_sap(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
