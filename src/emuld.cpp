@@ -1,14 +1,15 @@
-/* -*- Mode: C; c-basic-offset: 8; indent-tabs-mode: t -*-
+/*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
+ * Jinhyung Choi <jinhyung2.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -20,25 +21,18 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
  */
 
-/*-----------------------------------------------------------------
-
-epoll server program by Sungmin Ha.
-Platform : Linux 2.6.x (kernel)
-compiler Gcc: 3.4.3. 
-License: GNU General Public License   
-
-------------------------------------------------------------------*/
 #include "emuld_common.h"
 #include "emuld.h"
 #include "synbuf.h"
+#include "pmapi.h"
 
-
+#define PMAPI_RETRY_COUNT       3
 #define MAX_CONNECT_TRY_COUNT   (60 * 3)
 #define SRV_IP "10.0.2.2"
 
@@ -47,41 +41,35 @@ unsigned short vmodem_port = VMODEM_PORT;
 unsigned short sap_port = SAP_PORT;
 unsigned short sensord_port = SENSORD_PORT;
 
-int g_svr_port;                 /* global server port number */
+/* global server port number */
+int g_svr_port;
 
 static int g_vm_connect_status; /* connection status between emuld and vmodem  */
 static int g_sap_connect_status;/* connection status between emuld and sap daemon  */
 
-
 pthread_t tid[MAX_CLIENT + 1];
-
 
 /* udp socket */
 struct sockaddr_in si_sensord_other;
 
-
-
 int g_fd[fdtype_max];
-
 
 typedef std::queue<msg_info*> __msg_queue;
 
 __msg_queue g_msgqueue;
-
 
 int g_epoll_fd;
 
 static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mutex_sapconnect = PTHREAD_MUTEX_INITIALIZER;
 
-struct epoll_event g_events[MAX_EVENTS]; 
+struct epoll_event g_events[MAX_EVENTS];
 
 bool exit_flag = false;
-/*--------------------------------------------------------------*/
-/* FUNCTION PART 
- *---------------------------------------------------------------*/
 
-
+/*----------------------------------------------------------------*/
+/* FUNCTION PART                                                  */
+/* ---------------------------------------------------------------*/
 
 void systemcall(const char* param)
 {
@@ -142,10 +130,8 @@ void set_sap_connect_status(const int v)
     g_sap_connect_status = v;
 }
 
-
-
-/*------------------------------------------------------------- 
-function: init_server0 
+/*-------------------------------------------------------------
+function: init_server0
 io: input : integer - server port (must be positive)
 output: none
 desc : tcp/ip listening socket setting with input variable
@@ -195,7 +181,7 @@ bool init_server0(int svr_port, int* ret_fd)
     }
     LOG("[START] Now Server listening on port %d, EMdsockfd: %d"
             ,svr_port, fd);
-    
+ 
     /* notify to qemu that emuld is ready */
     emuld_ready();
 
@@ -211,7 +197,7 @@ bool init_server0(int svr_port, int* ret_fd)
 fail:
     close(fd);
     return false;
-} 
+}
 /*------------------------------- end of function init_server0 */
 
 void emuld_ready()
@@ -253,11 +239,12 @@ void emuld_ready()
     fprintf(stderr, "send message to guest server\n");
 
     while(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
-    {     
+    {
         fprintf(stderr, "sendto error! retry sendto\n");
         usleep(1000);
     }
     fprintf(stderr, "emuld is ready.\n");
+
     close(s);
 
 }
@@ -265,8 +252,7 @@ void emuld_ready()
 void* init_vm_connect(void* data)
 {
     struct sockaddr_in vm_addr;
-    int ret = -1;   
-    bool is_connected = false;
+    int ret = -1;
 
     set_vm_connect_status(0);
 
@@ -281,7 +267,7 @@ void* init_vm_connect(void* data)
     }
 
     /* Address Setting */
-    memset( &vm_addr , 0 , sizeof(vm_addr)) ;
+    memset( &vm_addr , 0 , sizeof(vm_addr));
 
     vm_addr.sin_family = AF_INET;
     vm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -297,10 +283,6 @@ void* init_vm_connect(void* data)
             LOG("connection failed to vmodem! try \n");
             sleep(1);
         }
-        else
-        {
-            is_connected = true;
-        }
     }
 
     epoll_ctl_add(g_fd[fdtype_vmodem]);
@@ -314,7 +296,6 @@ void* init_sap_connect(void* data)
 {
     struct sockaddr_in sap_addr;
     int ret = -1;
-    bool is_connected = false;
 
     set_sap_connect_status(0);
 
@@ -345,10 +326,6 @@ void* init_sap_connect(void* data)
             LOG("connection failed to sap! try \n");
             sleep(1);
         }
-        else
-        {
-            is_connected = true;
-        }
     }
 
     epoll_ctl_add(g_fd[fdtype_sap]);
@@ -357,7 +334,6 @@ void* init_sap_connect(void* data)
 
     pthread_exit((void *) 0);
 }
-
 
 bool epoll_ctl_add(const int fd)
 {
@@ -618,7 +594,7 @@ void recv_from_vmodem(int fd)
     }
 
     LOG("vmodem data length: %d", ijcmd.msg.length);
-    const int tmplen = HEADER_SIZE + ijcmd.msg.length; 
+    const int tmplen = HEADER_SIZE + ijcmd.msg.length;
     char* tmp = (char*) malloc(tmplen);
 
     if (tmp)
@@ -683,7 +659,6 @@ void recv_from_sap(int fd)
         free(tmp);
     }
 }
-
 
 void recv_from_ij(int fd)
 {
@@ -934,12 +909,24 @@ void end_server(int sig)
     exit(0);
 }
 
+void set_lock_state() {
+    int i = 0;
+    // Now we blocking to enter "SLEEP".
+    while (i < PMAPI_RETRY_COUNT && pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0) == -1) {
+        ++i;
+        sleep(10);
+    }
+    if (i == PMAPI_RETRY_COUNT) {
+        fprintf(stderr, "Emulator Daemon: Failed to call pm_lock_state().\n");
+    }
+}
 
 int main( int argc , char *argv[])
 {
-    int state;
+    int vm_state;
+    int sap_state;
 
-    if(log_print == 1)
+    //if(log_print == 1)
     {
         // for emuld log file
         systemcall("rm /var/log/emuld.log");
@@ -949,13 +936,9 @@ int main( int argc , char *argv[])
     LOG("start");
     /* entry , argument check and process */
     if(argc < 3){
-
         g_svr_port = DEFAULT_PORT;
-
     }else {
-
-        if(strcmp("-port",argv[1]) ==  0 ) {
-
+        if(strcmp("-port", argv[1]) ==  0 ) {
             g_svr_port = atoi(argv[2]);
             if(g_svr_port < 1024) {
                 fprintf(stderr, "[STOP] port number invalid : %d\n",g_svr_port);
@@ -1000,9 +983,9 @@ int main( int argc , char *argv[])
         close(g_epoll_fd);
         exit(0);
     }
-
-
     udp_init();
+
+    set_lock_state();
 
     bool is_exit = false;
 
@@ -1020,7 +1003,11 @@ int main( int argc , char *argv[])
         LOG("vmodem thread end %d\n", status);
     }
 
-    state = pthread_mutex_destroy(&mutex_vmconnect);
+    vm_state = pthread_mutex_destroy(&mutex_vmconnect);
+    if (vm_state != 0)
+    {
+        LOG("mutex_vmconnect is failed to destroy.");
+    }
 
     if (!is_sap_connected())
     {
@@ -1029,7 +1016,11 @@ int main( int argc , char *argv[])
         LOG("sap thread end %d\n", status);
     }
 
-    state = pthread_mutex_destroy(&mutex_sapconnect);
+    sap_state = pthread_mutex_destroy(&mutex_sapconnect);
+    if (sap_state != 0)
+    {
+        LOG("mutex_vmconnect is failed to destroy.");
+    }
 
     stop_listen();
 

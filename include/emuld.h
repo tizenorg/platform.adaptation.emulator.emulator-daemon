@@ -1,11 +1,13 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2011 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
+ * Jinhyung Choi <jinhyung2.choi@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
+ * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,23 +61,22 @@
 #include "emuld_proc.h"
 
 /* definition */
-#define MAX_CLIENT		10000
-#define MAX_EVENTS		10000
-#define MAX_GETCNT		10
-#define SDBD_PORT		26101
-#define DEFAULT_PORT		3577
-#define VMODEM_PORT		3578
-#define SAP_PORT		9999
-#define GPSD_PORT		3579
-#define SENSORD_PORT		3580
-#define SRV_IP 			"10.0.2.2"
-#define ID_SIZE			10
-#define HEADER_SIZE		4
+#define MAX_CLIENT          10000
+#define MAX_EVENTS          10000
+#define MAX_GETCNT          10
+#define SDBD_PORT           26101
+#define DEFAULT_PORT        3577
+#define VMODEM_PORT         3578
+#define SAP_PORT		    9999
+#define GPSD_PORT           3579
+#define SENSORD_PORT        3580
+#define SRV_IP              "10.0.2.2"
+#define ID_SIZE             10
+#define HEADER_SIZE         4
 #define EMD_DEBUG
-#define POWEROFF_DURATION     	2
+#define POWEROFF_DURATION   2
 
-
-#define SDB_PORT_FILE		"/opt/home/sdb_port.txt"
+#define SDB_PORT_FILE       "/opt/home/sdb_port.txt"
 
 enum
 {
@@ -93,19 +94,17 @@ extern struct sockaddr_in si_sensord_other;
 extern int g_fd[fdtype_max];
 
 
-#define IJTYPE_TELEPHONY		"telephony"
-#define IJTYPE_SAP		        "sap"
-#define IJTYPE_SDCARD			"sdcard"
+#define IJTYPE_TELEPHONY    "telephony"
+#define IJTYPE_SAP		    "sap"
+#define IJTYPE_SDCARD       "sdcard"
 
 bool epoll_ctl_add(const int fd);
 
 void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
 void userpool_delete(int cli_fd);
 
-
 bool epoll_init(void);            /* epoll fd create */
 bool epoll_ctl_add(const int fd);
-
 
 void init_data0(void);            /* initialize data. */
 bool init_server0(int svr_port, int* ret_fd);
@@ -128,47 +127,35 @@ bool is_sap_connected(void);
 
 void* init_vm_connect(void* data);
 void* init_sap_connect(void* data);
-
-
-
-
 void systemcall(const char* param);
 
 void recv_from_evdi(evdi_fd fd);
-
-static int log_print = 1;
-
 
 int powerdown_by_force(void);
 // location
 void setting_location(char* databuf);
 
-
 #define LOG(fmt, arg...) \
-	do { \
-		log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
-	} while (0)
-
-
-
+    do { \
+        log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
+    } while (0)
 
 #include <map>
 
-typedef unsigned short	CliSN;
+typedef unsigned short  CliSN;
 
 struct Cli
 {
-	Cli(CliSN clisn, int fdtype, int fd, unsigned short port) :
-		clisn(clisn), fdtype(fdtype), sockfd(fd), cli_port(port) {}
+    Cli(CliSN clisn, int fdtype, int fd, unsigned short port) :
+        clisn(clisn), fdtype(fdtype), sockfd(fd), cli_port(port) {}
 
-	CliSN clisn;
-	int fdtype;
-	int sockfd;				/* client socket fds */
-	unsigned short cli_port;		/* client connection port */
+    CliSN clisn;
+    int fdtype;
+    int sockfd;             /* client socket fds */
+    unsigned short cli_port;        /* client connection port */
 };
 
 typedef std::map<CliSN, Cli*> CliMap;
-
 
 void clipool_add(int fd, unsigned short port, const int fdtype);
 void clipool_delete(int fd);
@@ -180,34 +167,33 @@ bool send_to_all_ij(char* data, const int len);
 bool is_ij_exist();
 void stop_listen(void);
 
-
 struct fd_info
 {
-	fd_info() : fd(-1){}
-	int fd;
-	int fdtype;
+    fd_info() : fd(-1){}
+    int fd;
+    int fdtype;
 };
 
 struct ijcommand
 {
-	enum { CMD_SIZE = 48 };
-	ijcommand() : data(NULL)
-	{
-		memset(cmd, 0, CMD_SIZE);
-	}
-	~ijcommand()
-	{
-		if (data)
-		{
-			free(data);
-			data = NULL;
-		}
-	}
-	char cmd[CMD_SIZE];
-	char* data;
-	fd_info fdinfo;
+    enum { CMD_SIZE = 48 };
+    ijcommand() : data(NULL)
+    {
+        memset(cmd, 0, CMD_SIZE);
+    }
+    ~ijcommand()
+    {
+        if (data)
+        {
+            free(data);
+            data = NULL;
+        }
+    }
+    char cmd[CMD_SIZE];
+    char* data;
+    fd_info fdinfo;
 
-	LXT_MESSAGE msg;
+    LXT_MESSAGE msg;
 };
 
 void process_evdi_command(ijcommand* ijcmd);
@@ -223,6 +209,5 @@ bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-
 
 #endif //__emuld_h__
