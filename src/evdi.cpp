@@ -39,10 +39,10 @@ evdi_fd open_device(void)
     evdi_fd fd;
 
     fd = open(DEVICE_NODE_PATH, O_RDWR); //O_CREAT|O_WRONLY|O_TRUNC.
-    printf("evdi open fd is %d", fd);
+    LOG("evdi open fd is %d", fd);
 
     if (fd <= 0) {
-        printf("open %s fail", DEVICE_NODE_PATH);
+        LOG("open %s fail", DEVICE_NODE_PATH);
         return fd;
     }
 
@@ -85,7 +85,7 @@ bool init_device(evdi_fd* ret_fd)
 
     if (!epoll_ctl_add(fd))
     {
-        fprintf(stderr, "Epoll control fails.\n");
+        LOG("Epoll control fails.\n");
         close(fd);
         return false;
     }
@@ -97,12 +97,12 @@ bool init_device(evdi_fd* ret_fd)
 
 bool send_to_evdi(evdi_fd fd, const char* data, const int len)
 {
-    printf("send to evdi client, len = %d\n", len);
+    LOG("send to evdi client, len = %d\n", len);
     int ret;
 
     ret = write(fd, data, len);
 
-    printf("written bytes = %d\n", ret);
+    LOG("written bytes = %d\n", ret);
 
     if (ret == -1)
         return false;

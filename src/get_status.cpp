@@ -25,11 +25,11 @@
  *
  */
 
-
+//#include "emuld.h"
 #include "emuld_common.h"
 #include <vconf/vconf.h>
 #include <vconf/vconf-keys.h>
-
+#include "log.h"
 
 static int inline get_message(char* message, int status, int buf_len, bool is_evdi)
 {
@@ -225,7 +225,7 @@ char* get_acceleration_value(void* p, bool is_evdi)
 
     //fscanf(fd, "%d, %d, %d", message);
     if (!fgets(message, 128, fd))
-        fprintf(stderr, "fgets failure");
+        LOG("fgets failure");
 
     fclose(fd);
 
@@ -296,7 +296,7 @@ char* get_magnetic_value(void* p, bool is_evdi)
     char* message = __tmpalloc(128);
     if (!fgets(message, 128, fd))
     {
-        fprintf(stderr, "fgets failure");
+        LOG("fgets failure");
     }
     fclose(fd);
 
