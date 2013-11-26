@@ -914,7 +914,7 @@ void send_guest_server(char* databuf)
     si_other.sin_port = htons(port);
     if (inet_aton(SRV_IP, &si_other.sin_addr) == 0)
     {
-          fprintf(stderr, "inet_aton() failed\n");
+          LOG("inet_aton() failed\n");
     }
 
     memset(buf, '\0', sizeof(buf));

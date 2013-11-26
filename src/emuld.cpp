@@ -147,7 +147,7 @@ bool init_server0(int svr_port, int* ret_fd)
     /* Open TCP Socket */
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
+        LOG("Server Start Fails. : Can't open stream socket \n");
         return false;
     }
 
@@ -162,21 +162,21 @@ bool init_server0(int svr_port, int* ret_fd)
     int nSocketOpt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &nSocketOpt, sizeof(nSocketOpt)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't set reuse address\n");
+        LOG("Server Start Fails. : Can't set reuse address\n");
         goto fail;
     }
 
     /* Bind Socket */
     if (bind(fd,(struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't bind local address\n");
+        LOG("Server Start Fails. : Can't bind local address\n");
         goto fail;
     }
 
     /* Listening */
     if (listen(fd, 15) < 0) /* connection queue is 15. */
     {
-        fprintf(stderr, "Server Start Fails. : listen failure\n");
+        LOG("Server Start Fails. : listen failure\n");
         goto fail;
     }
     LOG("[START] Now Server listening on port %d, EMdsockfd: %d"
@@ -187,7 +187,7 @@ bool init_server0(int svr_port, int* ret_fd)
 
     if (!epoll_ctl_add(fd))
     {
-        fprintf(stderr, "Epoll control fails.\n");
+        LOG("Epoll control fails.\n");
         goto fail;
     }
 
@@ -211,17 +211,17 @@ void emuld_ready()
     char *temp_sdbport;
     temp_sdbport = getenv("sdb_port");
     if(temp_sdbport == NULL) {
-        fprintf(stderr, "failed to get env variable from sdb_port\n");
+        LOG("failed to get env variable from sdb_port\n");
         return;
     }
 
     port = strtol(temp_sdbport, &ptr, 10);
     port = port + 3;
 
-    fprintf(stderr, "guest_server port: %d\n", port);
+    LOG("guest_server port: %d\n", port);
 
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
-        fprintf(stderr, "socket error!\n");
+        LOG("socket error!\n");
         return;
     }
 
@@ -229,21 +229,21 @@ void emuld_ready()
     si_other.sin_family = AF_INET;
     si_other.sin_port = htons(port);
     if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
-        fprintf(stderr, "inet_aton() failed\n");
+        LOG("inet_aton() failed\n");
     }
 
     memset(buf, '\0', sizeof(buf));
 
     sprintf(buf, "5\n");
 
-    fprintf(stderr, "send message to guest server\n");
+    LOG("send message to guest server\n");
 
     while(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
     {
-        fprintf(stderr, "sendto error! retry sendto\n");
+        LOG("sendto error! retry sendto\n");
         usleep(1000);
     }
-    fprintf(stderr, "emuld is ready.\n");
+    LOG("emuld is ready.\n");
 
     close(s);
 
@@ -262,7 +262,7 @@ void* init_vm_connect(void* data)
     /* Open TCP Socket */
     if ((g_fd[fdtype_vmodem] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
+        LOG("Server Start Fails. : Can't open stream socket \n");
         exit(0);
     }
 
@@ -305,7 +305,7 @@ void* init_sap_connect(void* data)
     /* Open TCP Socket */
     if ((g_fd[fdtype_sap] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
+        LOG("Server Start Fails. : Can't open stream socket \n");
         exit(0);
     }
 
@@ -344,7 +344,7 @@ bool epoll_ctl_add(const int fd)
 
     if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
     {
-        fprintf(stderr, "Epoll control fails.\n");
+        LOG("Epoll control fails.\n");
         return false;
     }
 
@@ -357,7 +357,7 @@ bool epoll_init(void)
     g_epoll_fd = epoll_create(MAX_EVENTS); // create event pool
     if(g_epoll_fd < 0)
     {
-        fprintf(stderr, "Epoll create Fails.\n");
+        LOG("Epoll create Fails.\n");
         return false;
     }
 
@@ -424,7 +424,7 @@ void udp_init(void)
 
     if ((g_fd[fdtype_sensor] = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
     {
-        fprintf(stderr, "socket error!\n");
+        LOG("socket error!\n");
     }
 
     if (res->ai_addrlen > sizeof(si_sensord_other))
@@ -725,7 +725,7 @@ bool accept_proc(const int server_fd)
     cli_sockfd = accept(server_fd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
     if(cli_sockfd < 0)
     {
-        fprintf(stderr, "accept error\n");
+        LOG("accept error\n");
         return false;
     }
     else
@@ -867,7 +867,7 @@ bool server_process(void)
 
     if (nfds == -1 && errno != EAGAIN && errno != EINTR)
     {
-        fprintf(stderr, "epoll wait(%d)\n", errno);
+        LOG("epoll wait(%d)\n", errno);
         return true;
     }
 
@@ -917,7 +917,7 @@ void set_lock_state() {
         sleep(10);
     }
     if (i == PMAPI_RETRY_COUNT) {
-        fprintf(stderr, "Emulator Daemon: Failed to call pm_lock_state().\n");
+        LOG("Emulator Daemon: Failed to call pm_lock_state().\n");
     }
 }
 
@@ -941,7 +941,7 @@ int main( int argc , char *argv[])
         if(strcmp("-port", argv[1]) ==  0 ) {
             g_svr_port = atoi(argv[2]);
             if(g_svr_port < 1024) {
-                fprintf(stderr, "[STOP] port number invalid : %d\n",g_svr_port);
+                LOG("[STOP] port number invalid : %d\n",g_svr_port);
                 exit(0);
             }
         }
@@ -1024,7 +1024,7 @@ int main( int argc , char *argv[])
 
     stop_listen();
 
-    fprintf(stderr, "emuld exit\n");
+    LOG("emuld exit\n");
 
     return 0;
 }
