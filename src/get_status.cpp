@@ -25,7 +25,7 @@
  *
  */
 
-//#include "emuld.h"
+#include "emuld.h"
 #include "emuld_common.h"
 #include <vconf/vconf.h>
 #include <vconf/vconf-keys.h>

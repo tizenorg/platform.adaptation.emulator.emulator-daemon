@@ -911,8 +911,15 @@ void end_server(int sig)
 
 void set_lock_state() {
     int i = 0;
+    int ret = 0;
     // Now we blocking to enter "SLEEP".
-    while (i < PMAPI_RETRY_COUNT && pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0) == -1) {
+    while(i < PMAPI_RETRY_COUNT ) {
+        ret = pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
+        LOG("pm_lock_state() return: %d", ret);
+        if(ret == 0)
+        {
+            break;
+        }
         ++i;
         sleep(10);
     }
