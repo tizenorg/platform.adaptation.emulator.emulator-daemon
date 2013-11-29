@@ -547,7 +547,7 @@ void* setting_device(void* data)
 
 
 // event injector message handlers
-
+#ifdef CONFIG_VMODEM
 bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
     LOG("msgproc_telephony\n");
@@ -574,6 +574,7 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
     return true;
 }
+#endif
 
 bool msgproc_sap(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
@@ -586,7 +587,7 @@ bool msgproc_sap(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
     sent = send(g_fd[fdtype_sap], &ijcmd->msg, HEADER_SIZE, 0);
     if (sent == -1)
     {
-        perror("vmodem send error");
+        perror("sap send error");
     }
 
     LOG("sent to sap daemon = %d, err = %d\n", sent, errno);

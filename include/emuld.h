@@ -61,6 +61,7 @@
 #include "emuld_proc.h"
 
 /* definition */
+#define CONFIG_VMODEM       0
 #define MAX_CLIENT          10000
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10
@@ -119,14 +120,16 @@ bool accept_proc(const int server_fd);
 int recv_data(int event_fd, char** r_databuf, int size);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
+#ifdef CONFIG_VMODEM
 void set_vm_connect_status(const int v);
 bool is_vm_connected(void);
+void* init_vm_connect(void* data);
+#endif
 
 void set_sap_connect_status(const int v);
 bool is_sap_connected(void);
-
-void* init_vm_connect(void* data);
 void* init_sap_connect(void* data);
+
 void systemcall(const char* param);
 
 void recv_from_evdi(evdi_fd fd);

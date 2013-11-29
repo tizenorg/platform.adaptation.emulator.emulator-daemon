@@ -37,15 +37,21 @@
 #define SRV_IP "10.0.2.2"
 
 /* global definition */
+#ifdef CONFIG_VMODEM
 unsigned short vmodem_port = VMODEM_PORT;
+static int g_vm_connect_status; /* connection status between emuld and vmodem  */
+static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 unsigned short sap_port = SAP_PORT;
+static int g_sap_connect_status;/* connection status between emuld and sap daemon  */
+static pthread_mutex_t mutex_sapconnect = PTHREAD_MUTEX_INITIALIZER;
+
 unsigned short sensord_port = SENSORD_PORT;
 
 /* global server port number */
 int g_svr_port;
 
-static int g_vm_connect_status; /* connection status between emuld and vmodem  */
-static int g_sap_connect_status;/* connection status between emuld and sap daemon  */
 
 pthread_t tid[MAX_CLIENT + 1];
 
@@ -59,9 +65,6 @@ typedef std::queue<msg_info*> __msg_queue;
 __msg_queue g_msgqueue;
 
 int g_epoll_fd;
-
-static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mutex_sapconnect = PTHREAD_MUTEX_INITIALIZER;
 
 struct epoll_event g_events[MAX_EVENTS];
 
@@ -96,6 +99,7 @@ void init_data0(void)
     }
 }
 
+#ifdef CONFIG_VMODEM
 bool is_vm_connected(void)
 {
     _auto_mutex _(&mutex_vmconnect);
@@ -112,6 +116,7 @@ void set_vm_connect_status(const int v)
 
     g_vm_connect_status = v;
 }
+#endif
 
 bool is_sap_connected(void)
 {
@@ -249,6 +254,7 @@ void emuld_ready()
 
 }
 
+#ifdef CONFIG_VMODEM
 void* init_vm_connect(void* data)
 {
     struct sockaddr_in vm_addr;
@@ -291,6 +297,7 @@ void* init_vm_connect(void* data)
 
     pthread_exit((void *) 0);
 }
+#endif
 
 void* init_sap_connect(void* data)
 {
@@ -573,6 +580,7 @@ bool read_id(const int fd, ijcommand* ijcmd)
 }
 
 
+#ifdef CONFIG_VMODEM
 void recv_from_vmodem(int fd)
 {
     printf("recv_from_vmodem\n");
@@ -621,6 +629,7 @@ void recv_from_vmodem(int fd)
         }
     }
 }
+#endif
 
 void recv_from_sap(int fd)
 {
@@ -684,10 +693,12 @@ void recv_from_ij(int fd)
     {
         msgproc_sap(fd, &ijcmd, false);
     }
+#ifdef CONFIG_VMODEM
     else if (strncmp(ijcmd.cmd, "telephony", 9) == 0)
     {
         msgproc_telephony(fd, &ijcmd, false);
     }
+#endif
     else if (strncmp(ijcmd.cmd, "sensor", 6) == 0)
     {
         msgproc_sensor(fd, &ijcmd, false);
@@ -889,10 +900,12 @@ bool server_process(void)
         {
             recv_from_evdi(fd_tmp);
         }
+#ifdef CONFIG_VMODEM
         else if(fd_tmp == g_fd[fdtype_vmodem])
         {
             recv_from_vmodem(fd_tmp);
         }
+#endif
         else
         {
             recv_from_ij(fd_tmp);
@@ -933,7 +946,9 @@ void set_lock_state() {
 
 int main( int argc , char *argv[])
 {
+#ifdef CONFIG_VMODEM
     int vm_state;
+#endif
     int sap_state;
 
     //if(log_print == 1)
@@ -977,7 +992,7 @@ int main( int argc , char *argv[])
     }
 
     LOG("[START] epoll events set success for server");
-
+#ifdef CONFIG_VMODEM
     set_vm_connect_status(0);
 
     if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
@@ -986,7 +1001,7 @@ int main( int argc , char *argv[])
         close(g_epoll_fd);
         exit(0);
     }
-
+#endif
     if(pthread_create(&tid[3], NULL, init_sap_connect, NULL) != 0)
     {
         LOG("pthread create fail!");
@@ -1006,6 +1021,7 @@ int main( int argc , char *argv[])
 
     exit_flag = true;
 
+#ifdef CONFIG_VMODEM
     if (!is_vm_connected())
     {
         int status;
@@ -1018,7 +1034,7 @@ int main( int argc , char *argv[])
     {
         LOG("mutex_vmconnect is failed to destroy.");
     }
-
+#endif
     if (!is_sap_connected())
     {
         int status;
@@ -1029,7 +1045,7 @@ int main( int argc , char *argv[])
     sap_state = pthread_mutex_destroy(&mutex_sapconnect);
     if (sap_state != 0)
     {
-        LOG("mutex_vmconnect is failed to destroy.");
+        LOG("mutex_sapconnect is failed to destroy.");
     }
 
     stop_listen();
