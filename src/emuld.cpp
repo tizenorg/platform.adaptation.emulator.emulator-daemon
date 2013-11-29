@@ -348,7 +348,7 @@ bool epoll_ctl_add(const int fd)
         return false;
     }
 
-    printf("[START] epoll events set success for server\n");
+    LOG("[START] epoll events set success for server\n");
     return true;
 }
 
@@ -680,8 +680,11 @@ void recv_from_ij(int fd)
         return;
     }
 
-
-    if (strncmp(ijcmd.cmd, "telephony", 9) == 0)
+    if (strncmp(ijcmd.cmd, "sap", 3) == 0)
+    {
+        msgproc_sap(fd, &ijcmd, false);
+    }
+    else if (strncmp(ijcmd.cmd, "telephony", 9) == 0)
     {
         msgproc_telephony(fd, &ijcmd, false);
     }
@@ -704,10 +707,6 @@ void recv_from_ij(int fd)
     else if (strncmp(ijcmd.cmd, "sdcard", 6) == 0)
     {
         msgproc_sdcard(fd, &ijcmd, false);
-    }
-    else if (strncmp(ijcmd.cmd, "sap", 3) == 0)
-    {
-        msgproc_sap(fd, &ijcmd, false);
     }
     else
     {
@@ -746,7 +745,11 @@ void process_evdi_command(ijcommand* ijcmd)
 {
     int fd = -1;
 
-    if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
+    if (strncmp(ijcmd->cmd, "sap", 3) == 0)
+    {
+        msgproc_sap(fd, ijcmd, true);
+    }
+    else if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
     {
         msgproc_telephony(fd, ijcmd, true);
     }
