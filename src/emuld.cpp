@@ -78,6 +78,28 @@ void systemcall(const char* param)
         LOG("system call failure(command = %s)\n", param);
 }
 
+void set_lock_state(int state) {
+    int i = 0;
+    int ret = 0;
+    // Now we blocking to enter "SLEEP".
+    while(i < PMAPI_RETRY_COUNT ) {
+        if (state == SUSPEND_LOCK) {
+            ret = pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
+        } else {
+            ret = pm_unlock_state(LCD_NORMAL, PM_RESET_TIMER);
+        }
+        LOG("pm_lock_state() return: %d", ret);
+        if(ret == 0)
+        {
+            break;
+        }
+        ++i;
+        sleep(10);
+    }
+    if (i == PMAPI_RETRY_COUNT) {
+        LOG("Emulator Daemon: Failed to call pm_lock_state().\n");
+    }
+}
 
 /*---------------------------------------------------------------
 function : init_data0
@@ -628,7 +650,7 @@ bool accept_proc(const int server_fd)
     }
     else
     {
-        LOG("[Accpet] New client connected. fd:%d, port:%d"
+        LOG("[Accept] New client connected. fd:%d, port:%d"
                 ,cli_sockfd, cli_addr.sin_port);
 
         clipool_add(cli_sockfd, cli_addr.sin_port, fdtype_ij);
@@ -637,6 +659,44 @@ bool accept_proc(const int server_fd)
     return true;
 }
 
+static void msgproc_suspend(int fd, ijcommand* ijcmd, bool evdi)
+{
+    if (ijcmd->msg.action == SUSPEND_LOCK) {
+        set_lock_state(SUSPEND_LOCK);
+    } else {
+        set_lock_state(SUSPEND_UNLOCK);
+    }
+
+	LOG("[Suspend] Set lock state as %d (1: lock, other: unlock)\n", ijcmd->msg.action);
+}
+
+static void send_default_suspend_req(void)
+{
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+    if(packet == NULL){
+        return;
+    }
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+
+    packet->length = 0;
+    packet->group = 5;
+    packet->action = 15;
+
+	int tmplen = HEADER_SIZE;
+	char* tmp = (char*) malloc(tmplen);
+	if (!tmp)
+		return;
+
+    memcpy(tmp, packet, HEADER_SIZE);
+
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SUSPEND, (const char*) tmp, tmplen);
+
+
+	if (tmp)
+	    free(tmp);
+	if (packet)
+		free(packet);
+}
 
 static synbuf g_synbuf;
 
@@ -667,6 +727,10 @@ void process_evdi_command(ijcommand* ijcmd)
     else if (strncmp(ijcmd->cmd, "sdcard", 6) == 0)
     {
         msgproc_sdcard(fd, ijcmd, true);
+    }
+    else if (strncmp(ijcmd->cmd, "suspend", 7) == 0)
+    {
+        msgproc_suspend(fd, ijcmd, true);
     }
     else
     {
@@ -803,18 +867,6 @@ void end_server(int sig)
     exit(0);
 }
 
-void set_lock_state() {
-    int i = 0;
-    // Now we blocking to enter "SLEEP".
-    while (i < PMAPI_RETRY_COUNT && pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0) == -1) {
-        ++i;
-        sleep(10);
-    }
-    if (i == PMAPI_RETRY_COUNT) {
-        fprintf(stderr, "Emulator Daemon: Failed to call pm_lock_state().\n");
-    }
-}
-
 int main( int argc , char *argv[])
 {
     int state;
@@ -872,7 +924,7 @@ int main( int argc , char *argv[])
 
     udp_init();
 
-    set_lock_state();
+    send_default_suspend_req();
 
     bool is_exit = false;
 

@@ -75,6 +75,9 @@
 #define EMD_DEBUG
 #define POWEROFF_DURATION   2
 
+#define SUSPEND_UNLOCK      0
+#define SUSPEND_LOCK        1
+
 #define SDB_PORT_FILE       "/opt/home/sdb_port.txt"
 
 enum
@@ -94,6 +97,7 @@ extern int g_fd[fdtype_max];
 
 #define IJTYPE_TELEPHONY    "telephony"
 #define IJTYPE_SDCARD       "sdcard"
+#define IJTYPE_SUSPEND      "suspend"
 
 bool epoll_ctl_add(const int fd);
 
