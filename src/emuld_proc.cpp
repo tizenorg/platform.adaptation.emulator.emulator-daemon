@@ -576,29 +576,22 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 }
 #endif
 
-bool msgproc_sap(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
+bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_sap\n");
+    int sent = 0;
 
-    if (!is_sap_connected())
+    if (!is_pedometer_connected())
         return false;
+   
+    print_binary(ijcmd->data, 18);
 
-    int sent;
-    sent = send(g_fd[fdtype_sap], &ijcmd->msg, HEADER_SIZE, 0);
+    sent = send(g_fd[fdtype_pedometer], ijcmd->data, ijcmd->msg.length, 0);
     if (sent == -1)
     {
-        perror("sap send error");
+        perror("pedometer send error");
     }
 
-    LOG("sent to sap daemon = %d, err = %d\n", sent, errno);
-
-    sent = send(g_fd[fdtype_sap], ijcmd->data, ijcmd->msg.length, 0);
-    if (sent == -1)
-    {
-        perror("sap send error");
-    }
-
-    LOG("sent to sap daemon = %d, err = %d\n", sent, errno);
+    LOG("sent to pedometer daemon = %d, err = %d\n", sent, errno);
 
     return true;
 }

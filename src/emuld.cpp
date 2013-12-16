@@ -43,9 +43,9 @@ static int g_vm_connect_status; /* connection status between emuld and vmodem  *
 static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-unsigned short sap_port = SAP_PORT;
-static int g_sap_connect_status;/* connection status between emuld and sap daemon  */
-static pthread_mutex_t mutex_sapconnect = PTHREAD_MUTEX_INITIALIZER;
+unsigned short pedometer_port = PEDOMETER_PORT;
+static int g_pedometer_connect_status;/* connection status between emuld and pedometer daemon  */
+static pthread_mutex_t mutex_pedometerconnect = PTHREAD_MUTEX_INITIALIZER;
 
 unsigned short sensord_port = SENSORD_PORT;
 
@@ -118,21 +118,21 @@ void set_vm_connect_status(const int v)
 }
 #endif
 
-bool is_sap_connected(void)
+bool is_pedometer_connected(void)
 {
-    _auto_mutex _(&mutex_sapconnect);
+    _auto_mutex _(&mutex_pedometerconnect);
 
-    if (g_sap_connect_status != 1)
+    if (g_pedometer_connect_status != 1)
         return false;
 
     return true;
 }
 
-void set_sap_connect_status(const int v)
+void set_pedometer_connect_status(const int v)
 {
-    _auto_mutex _(&mutex_sapconnect);
+    _auto_mutex _(&mutex_pedometerconnect);
 
-    g_sap_connect_status = v;
+    g_pedometer_connect_status = v;
 }
 
 /*-------------------------------------------------------------
@@ -204,6 +204,19 @@ fail:
     return false;
 }
 /*------------------------------- end of function init_server0 */
+
+void print_binary(const char* data, const int len)
+{
+    int i;
+    printf("[DATA: ");
+    for(i = 0; i < len; i++) {
+        if(i == len - 1) {
+            printf("%02x]\n", data[i]);
+        } else {
+            printf("%02x,", data[i]);
+        }
+    }
+}
 
 void emuld_ready()
 {
@@ -299,45 +312,45 @@ void* init_vm_connect(void* data)
 }
 #endif
 
-void* init_sap_connect(void* data)
+void* init_pedometer_connect(void* data)
 {
-    struct sockaddr_in sap_addr;
+    struct sockaddr_in pedometer_addr;
     int ret = -1;
 
-    set_sap_connect_status(0);
+    set_pedometer_connect_status(0);
 
-    LOG("init_sap_connect start\n");
+    LOG("init_pedometer_connect start\n");
 
     pthread_detach(pthread_self());
     /* Open TCP Socket */
-    if ((g_fd[fdtype_sap] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if ((g_fd[fdtype_pedometer] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         LOG("Server Start Fails. : Can't open stream socket \n");
         exit(0);
     }
 
     /* Address Setting */
-    memset( &sap_addr , 0 , sizeof(sap_addr)) ;
+    memset( &pedometer_addr , 0 , sizeof(pedometer_addr)) ;
 
-    sap_addr.sin_family = AF_INET;
-    sap_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    sap_addr.sin_port = htons(sap_port);
+    pedometer_addr.sin_family = AF_INET;
+    pedometer_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    pedometer_addr.sin_port = htons(pedometer_port);
 
     while (ret < 0 && !exit_flag)
     {
-        ret = connect(g_fd[fdtype_sap], (struct sockaddr *)&sap_addr, sizeof(sap_addr));
+        ret = connect(g_fd[fdtype_pedometer], (struct sockaddr *)&pedometer_addr, sizeof(pedometer_addr));
 
-        LOG("sap_sockfd: %d, connect ret: %d\n", g_fd[fdtype_sap], ret);
+        LOG("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
 
         if(ret < 0) {
-            LOG("connection failed to sap! try \n");
+            LOG("connection failed to pedometer! try \n");
             sleep(1);
         }
     }
 
-    epoll_ctl_add(g_fd[fdtype_sap]);
+    epoll_ctl_add(g_fd[fdtype_pedometer]);
 
-    set_sap_connect_status(1);
+    set_pedometer_connect_status(1);
 
     pthread_exit((void *) 0);
 }
@@ -631,27 +644,27 @@ void recv_from_vmodem(int fd)
 }
 #endif
 
-void recv_from_sap(int fd)
+void recv_from_pedometer(int fd)
 {
-    printf("recv_from_sap\n");
+    printf("recv_from_pedometer\n");
 
     ijcommand ijcmd;
     if (!read_ijcmd(fd, &ijcmd))
     {
         LOG("fail to read ijcmd\n");
 
-        set_sap_connect_status(0);
+        set_pedometer_connect_status(0);
 
         close(fd);
 
-        if (pthread_create(&tid[3], NULL, init_sap_connect, NULL) != 0)
+        if (pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
         {
             LOG("pthread create fail!");
         }
         return;
     }
 
-    LOG("sap data length: %d", ijcmd.msg.length);
+    LOG("pedometer data length: %d", ijcmd.msg.length);
     const int tmplen = HEADER_SIZE + ijcmd.msg.length;
     char* tmp = (char*) malloc(tmplen);
 
@@ -661,7 +674,7 @@ void recv_from_sap(int fd)
         if (ijcmd.msg.length > 0)
             memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
 
-        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SAP, (const char*) tmp, tmplen)) {
+        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_PEDOMETER, (const char*) tmp, tmplen)) {
             LOG("msg_send_to_evdi: failed\n");
         }
 
@@ -689,9 +702,9 @@ void recv_from_ij(int fd)
         return;
     }
 
-    if (strncmp(ijcmd.cmd, "sap", 3) == 0)
+    if (strncmp(ijcmd.cmd, "pedometer", 9) == 0)
     {
-        msgproc_sap(fd, &ijcmd, false);
+        msgproc_pedometer(fd, &ijcmd, false);
     }
 #ifdef CONFIG_VMODEM
     else if (strncmp(ijcmd.cmd, "telephony", 9) == 0)
@@ -756,9 +769,9 @@ void process_evdi_command(ijcommand* ijcmd)
 {
     int fd = -1;
 
-    if (strncmp(ijcmd->cmd, "sap", 3) == 0)
+    if (strncmp(ijcmd->cmd, "pedometer", 9) == 0)
     {
-        msgproc_sap(fd, ijcmd, true);
+        msgproc_pedometer(fd, ijcmd, true);
     }
     else if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
     {
@@ -892,9 +905,9 @@ bool server_process(void)
         {
             accept_proc(fd_tmp);
         }
-        else if (fd_tmp == g_fd[fdtype_sap])
+        else if (fd_tmp == g_fd[fdtype_pedometer])
         {
-            recv_from_sap(fd_tmp);
+            recv_from_pedometer(fd_tmp);
         }
         else if (fd_tmp == g_fd[fdtype_device])
         {
@@ -949,7 +962,7 @@ int main( int argc , char *argv[])
 #ifdef CONFIG_VMODEM
     int vm_state;
 #endif
-    int sap_state;
+    int pedometer_state;
 
     //if(log_print == 1)
     {
@@ -1002,7 +1015,7 @@ int main( int argc , char *argv[])
         exit(0);
     }
 #endif
-    if(pthread_create(&tid[3], NULL, init_sap_connect, NULL) != 0)
+    if(pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
     {
         LOG("pthread create fail!");
         close(g_epoll_fd);
@@ -1035,17 +1048,17 @@ int main( int argc , char *argv[])
         LOG("mutex_vmconnect is failed to destroy.");
     }
 #endif
-    if (!is_sap_connected())
+    if (!is_pedometer_connected())
     {
         int status;
         pthread_join(tid[3], (void **)&status);
-        LOG("sap thread end %d\n", status);
+        LOG("pedometer thread end %d\n", status);
     }
 
-    sap_state = pthread_mutex_destroy(&mutex_sapconnect);
-    if (sap_state != 0)
+    pedometer_state = pthread_mutex_destroy(&mutex_pedometerconnect);
+    if (pedometer_state != 0)
     {
-        LOG("mutex_sapconnect is failed to destroy.");
+        LOG("mutex_pedometerconnect is failed to destroy.");
     }
 
     stop_listen();

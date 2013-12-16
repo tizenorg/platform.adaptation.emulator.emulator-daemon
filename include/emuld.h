@@ -68,7 +68,7 @@
 #define SDBD_PORT           26101
 #define DEFAULT_PORT        3577
 #define VMODEM_PORT         3578
-#define SAP_PORT            26871
+#define PEDOMETER_PORT      3600
 #define GPSD_PORT           3579
 #define SENSORD_PORT        3580
 #define SRV_IP              "10.0.2.2"
@@ -81,13 +81,13 @@
 
 enum
 {
-    fdtype_server = 0,
-    fdtype_device = 1,
-    fdtype_vmodem = 2,
-    fdtype_sap    = 3,
-    fdtype_ij     = 4,
-    fdtype_sensor = 5, //udp
-    fdtype_max    = 6
+    fdtype_server     = 0,
+    fdtype_device     = 1,
+    fdtype_vmodem     = 2,
+    fdtype_pedometer  = 3,
+    fdtype_ij         = 4,
+    fdtype_sensor     = 5, //udp
+    fdtype_max        = 6
 };
 
 extern pthread_t tid[MAX_CLIENT + 1];
@@ -96,7 +96,7 @@ extern int g_fd[fdtype_max];
 
 
 #define IJTYPE_TELEPHONY    "telephony"
-#define IJTYPE_SAP          "sap"
+#define IJTYPE_PEDOMETER    "pedometer"
 #define IJTYPE_SDCARD       "sdcard"
 
 bool epoll_ctl_add(const int fd);
@@ -126,12 +126,13 @@ bool is_vm_connected(void);
 void* init_vm_connect(void* data);
 #endif
 
-void set_sap_connect_status(const int v);
-bool is_sap_connected(void);
-void* init_sap_connect(void* data);
+void set_pedometer_connect_status(const int v);
+bool is_pedometer_connected(void);
+void* init_pedometer_connect(void* data);
 
 void systemcall(const char* param);
 
+void print_binary(const char* data, const int len); 
 void recv_from_evdi(evdi_fd fd);
 
 int powerdown_by_force(void);
@@ -206,7 +207,7 @@ void* setting_device(void* data);
 
 // msg proc
 bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_sap(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
+bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
