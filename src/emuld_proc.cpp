@@ -570,7 +570,7 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         perror("vmodem send error");
     }
 
-    LOG("sent to vmodem = %d, err = %d\n", sent, errno);
+    LOG("sent to pedometer daemon: %d byte", sent);
 
     return true;
 }
@@ -591,7 +591,7 @@ bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         perror("pedometer send error");
     }
 
-    LOG("sent to pedometer daemon = %d, err = %d\n", sent, errno);
+    LOG("sent to pedometer daemon: %d byte", sent);
 
     return true;
 }

@@ -61,7 +61,9 @@
 #include "emuld_proc.h"
 
 /* definition */
-#define CONFIG_VMODEM       0
+//use when use telephony
+//#define CONFIG_VMODEM
+
 #define MAX_CLIENT          10000
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10

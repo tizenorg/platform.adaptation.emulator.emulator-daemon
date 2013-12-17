@@ -773,10 +773,12 @@ void process_evdi_command(ijcommand* ijcmd)
     {
         msgproc_pedometer(fd, ijcmd, true);
     }
+#ifdef CONFIG_VMODEM
     else if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
     {
         msgproc_telephony(fd, ijcmd, true);
     }
+#endif
     else if (strncmp(ijcmd->cmd, "sensor", 6) == 0)
     {
         msgproc_sensor(fd, ijcmd, true);
@@ -872,8 +874,6 @@ void recv_from_evdi(evdi_fd fd)
             return;
         }
         readed = g_synbuf.read(ijcmd.data, ijcmd.msg.length);
-
-        LOG("DATA : %s\n", ijcmd.data);
 
         if (readed < ijcmd.msg.length)
         {
