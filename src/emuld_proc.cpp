@@ -848,6 +848,9 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
                                 free(tmp);
                             }
+
+							if (mountinfo)
+								delete [] mountinfo;
                         }
                         break;
                     default:

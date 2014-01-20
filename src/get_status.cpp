@@ -93,6 +93,14 @@ char* __tmpalloc(const int size)
     return message;
 }
 
+void __tmpfree(char* message)
+{
+    if (message) {
+        free(message);
+        message = 0;
+    }
+}
+
 char* get_usb_status(void* p, bool is_evdi)
 {
     char* message = __tmpalloc(5);
@@ -116,6 +124,7 @@ char* get_earjack_status(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_file_status(message, "/sys/devices/platform/jack/earjack_online", 5, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -133,6 +142,7 @@ char* get_rssi_level(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_vconf_status(message, "memory/telephony/rssi", 5, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -150,6 +160,7 @@ char* get_battery_level(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_file_status(message, "/sys/class/power_supply/battery/capacity", 5, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -167,6 +178,7 @@ char* get_battery_charger(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_file_status(message, "/sys/class/power_supply/battery/charge_now", 5, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -184,6 +196,7 @@ char* get_proximity_status(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_file_status(message, PATH_SENSOR_PROXI_VO, 5, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -201,6 +214,7 @@ char* get_light_level(void* p, bool is_evdi)
     char* message = __tmpalloc(6);
     int length = get_file_status(message, PATH_SENSOR_LIGHT_ADC, 6, is_evdi);
     if (length < 0){
+        __tmpfree(message);
         return 0;
     }
 
@@ -271,8 +285,7 @@ char* get_gyroscope_value(void* p, bool is_evdi)
 
     ret = sprintf(message, "%d, %d, %d", x, y, z);
     if (ret < 0) {
-        free(message);
-        message = 0;
+        __tmpfree(message);
         return 0;
     }
 
@@ -391,6 +404,7 @@ char* get_nfc_status(void* p, bool is_evdi)
     fclose(fd);
     if (ret < 0)
     {
+        __tmpfree(message);
         return 0;
     }
 
