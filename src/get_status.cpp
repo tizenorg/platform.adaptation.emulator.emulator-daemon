@@ -388,11 +388,11 @@ char* get_nfc_status(void* p, bool is_evdi)
 
     char* message = __tmpalloc(5000);
     ret = fscanf(fd, "%s\n", message);
+    fclose(fd);
     if (ret < 0)
     {
         return 0;
     }
-    fclose(fd);
 
     LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
     memset(packet, 0, sizeof(LXT_MESSAGE));
