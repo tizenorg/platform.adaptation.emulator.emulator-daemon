@@ -833,7 +833,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                                     memcpy(tmp + HEADER_SIZE + mntData->length, mountinfo, mountinfo_size);
                                     mntData->length += mountinfo_size;
                                     memcpy(tmp, mntData, HEADER_SIZE);
-                                    delete mountinfo;
+                                    delete [] mountinfo;
                                     mountinfo = NULL;
                                 }
 
