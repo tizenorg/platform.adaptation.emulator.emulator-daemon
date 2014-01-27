@@ -37,6 +37,6 @@ add_definitions(-Iinclude)
 ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.cpp src/evdi.cpp src/emuld_proc.cpp src/client.cpp src/get_status.cpp src/log.cpp)
 
 target_link_libraries(${PROJECT_NAME} ${rpkgs_LDFLAGS} ${GLES_LDFLAGS})
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf -lpmapi" )
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf -ldeviced" )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)

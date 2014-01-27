@@ -30,7 +30,7 @@
 #include "emuld_common.h"
 #include "emuld.h"
 #include "synbuf.h"
-#include "pmapi.h"
+#include "deviced/dd-display.h"
 
 #define PMAPI_RETRY_COUNT       3
 #define MAX_CONNECT_TRY_COUNT   (60 * 3)
@@ -943,8 +943,8 @@ void set_lock_state() {
     int ret = 0;
     // Now we blocking to enter "SLEEP".
     while(i < PMAPI_RETRY_COUNT ) {
-        ret = pm_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
-        LOG("pm_lock_state() return: %d", ret);
+        ret = display_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
+        LOG("display_lock_state() return: %d", ret);
         if(ret == 0)
         {
             break;
@@ -953,7 +953,7 @@ void set_lock_state() {
         sleep(10);
     }
     if (i == PMAPI_RETRY_COUNT) {
-        LOG("Emulator Daemon: Failed to call pm_lock_state().\n");
+        LOG("Emulator Daemon: Failed to call display_lock_state().\n");
     }
 }
 

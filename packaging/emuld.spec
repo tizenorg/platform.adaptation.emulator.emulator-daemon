@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.4.2
+Version: 0.4.3
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -8,7 +8,7 @@ Group: SDK/Other
 Source1001: packaging/emuld.manifest
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
-BuildRequires: pkgconfig(pmapi)
+BuildRequires: pkgconfig(deviced)
 
 %description
 A emulator daemon is used for communication emulator between and ide.
