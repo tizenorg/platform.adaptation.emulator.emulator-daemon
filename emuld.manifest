@@ -1,0 +1,11 @@
+<manifest>
+	<define>
+    	<domain name="emuld"/>
+		<request>
+			<smack request="context-manager" type="w" />
+		</request>
+	</define>
+    <request>
+        <domain name="emuld" />
+    </request>
+</manifest>

@@ -1,14 +1,14 @@
 Name: emuld
-Version: 0.4.3
+Version: 0.4.4
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
-Source1001: packaging/emuld.manifest
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
 BuildRequires: pkgconfig(deviced)
+Requires: context-manager
 
 %description
 A emulator daemon is used for communication emulator between and ide.
@@ -61,6 +61,7 @@ mkdir -p /opt/nfc
 touch /opt/nfc/sdkMsg
 
 %files
+%manifest emuld.manifest
 %defattr(-,root,root,-)
 %{_prefix}/bin/emuld
 /usr/share/license/%{name}
