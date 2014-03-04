@@ -54,7 +54,6 @@
 #include <queue>
 #include <map>
 
-#include "log.h"
 #include "emuld_common.h"
 #include "evdi_protocol.h"
 #include "evdi.h"
@@ -64,11 +63,8 @@
 #define MAX_CLIENT          10000
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10
-#define SDBD_PORT           26101
 #define DEFAULT_PORT        3577
 #define VMODEM_PORT         3578
-#define GPSD_PORT           3579
-#define SENSORD_PORT        3580
 #define SRV_IP              "10.0.2.2"
 #define ID_SIZE             10
 #define HEADER_SIZE         4
@@ -86,7 +82,6 @@ enum
     fdtype_device = 1,
     fdtype_vmodem = 2,
     fdtype_ij     = 3,
-    fdtype_sensor = 4, //udp
     fdtype_max    = 5
 };
 
@@ -94,49 +89,37 @@ extern pthread_t tid[MAX_CLIENT + 1];
 extern struct sockaddr_in si_sensord_other;
 extern int g_fd[fdtype_max];
 
+#if defined(ENABLE_DLOG_OUT)
+#  define LOG_TAG           "EMULATOR_DAEMON"
+#  include <dlog/dlog.h>
+#  define LOGINFO LOGI
+#  define LOGERR LOGE
+#  define LOGDEBUG LOGD
+#else
+#  define LOGINFO(fmt, arg...)
+#  define LOGERR(fmt, arg...)
+#  define LOGDEBUG(fmt, arg...)
+#endif
 
 #define IJTYPE_TELEPHONY    "telephony"
 #define IJTYPE_SDCARD       "sdcard"
 #define IJTYPE_SUSPEND      "suspend"
 
+int parse_val(char *buff, unsigned char data, char *parsbuf);
+
+bool is_vm_connected(void);
 bool epoll_ctl_add(const int fd);
 
 void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
 void userpool_delete(int cli_fd);
 
-bool epoll_init(void);            /* epoll fd create */
-bool epoll_ctl_add(const int fd);
-
-void init_data0(void);            /* initialize data. */
-bool init_server0(int svr_port, int* ret_fd);
-void end_server(int sig);
-
 void udp_init(void);
-void emuld_ready(void);
-
-bool server_process(void);
-bool accept_proc(const int server_fd);
-
-int recv_data(int event_fd, char** r_databuf, int size);
-int parse_val(char *buff, unsigned char data, char *parsbuf);
-
-void set_vm_connect_status(const int v);
-bool is_vm_connected(void);
-
-void* init_vm_connect(void* data);
 
 void systemcall(const char* param);
-
-void recv_from_evdi(evdi_fd fd);
 
 int powerdown_by_force(void);
 // location
 void setting_location(char* databuf);
-
-#define LOG(fmt, arg...) \
-    do { \
-        log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
-    } while (0)
 
 #include <map>
 
