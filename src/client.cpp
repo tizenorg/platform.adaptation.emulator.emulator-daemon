@@ -51,7 +51,7 @@ void clipool_add(int fd, unsigned short port, const int fdtype)
     if (!g_climap.insert(CliMap::value_type(fd, cli)).second)
         return;
 
-    LOG("clipool_add fd = %d, port = %d, type = %d \n", fd, port, fdtype);
+    LOGINFO("clipool_add fd = %d, port = %d, type = %d", fd, port, fdtype);
 }
 
 
@@ -79,7 +79,7 @@ void clipool_delete(int fd)
         }
     }
 
-    LOG("clipool_delete fd = %d\n", fd);
+    LOGINFO("clipool_delete fd = %d", fd);
 }
 
 
@@ -130,10 +130,10 @@ bool send_to_all_ij(char* data, const int len)
         result = (sent == -1) ? false : true;
         if (sent == -1)
         {
-            perror("failed to send to ij\n");
+            LOGERR("failed to send to ij");
         }
 
-        LOG("send_len: %d, err= %d\n", sent, errno);
+        LOGDEBUG("send_len: %d, err= %d", sent, errno);
     }
     return result;
 }

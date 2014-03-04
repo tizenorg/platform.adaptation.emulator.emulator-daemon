@@ -38,7 +38,6 @@
 
 /* global definition */
 unsigned short vmodem_port = VMODEM_PORT;
-unsigned short sensord_port = SENSORD_PORT;
 
 /* global server port number */
 int g_svr_port;
@@ -75,7 +74,7 @@ void systemcall(const char* param)
         return;
 
     if (system(param) == -1)
-        LOG("system call failure(command = %s)\n", param);
+        LOGERR("system call failure(command = %s)", param);
 }
 
 void set_lock_state(int state) {
@@ -88,7 +87,7 @@ void set_lock_state(int state) {
         } else {
             ret = pm_unlock_state(LCD_NORMAL, PM_RESET_TIMER);
         }
-        LOG("pm_lock_state() return: %d", ret);
+        LOGINFO("pm_lock/unlock_state() return: %d", ret);
         if(ret == 0)
         {
             break;
@@ -97,7 +96,7 @@ void set_lock_state(int state) {
         sleep(10);
     }
     if (i == PMAPI_RETRY_COUNT) {
-        LOG("Emulator Daemon: Failed to call pm_lock_state().\n");
+        LOGERR("Emulator Daemon: Failed to call pm_lock/unlock_state().");
     }
 }
 
@@ -151,7 +150,7 @@ bool init_server0(int svr_port, int* ret_fd)
     /* Open TCP Socket */
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
+        LOGERR("Server Start Fails. : Can't open stream socket");
         return false;
     }
 
@@ -166,24 +165,24 @@ bool init_server0(int svr_port, int* ret_fd)
     int nSocketOpt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &nSocketOpt, sizeof(nSocketOpt)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't set reuse address\n");
+        LOGERR("Server Start Fails. : Can't set reuse address");
         goto fail;
     }
 
     /* Bind Socket */
     if (bind(fd,(struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't bind local address\n");
+        LOGERR("Server Start Fails. : Can't bind local address");
         goto fail;
     }
 
     /* Listening */
     if (listen(fd, 15) < 0) /* connection queue is 15. */
     {
-        fprintf(stderr, "Server Start Fails. : listen failure\n");
+        LOGERR("Server Start Fails. : listen failure");
         goto fail;
     }
-    LOG("[START] Now Server listening on port %d, EMdsockfd: %d"
+    LOGINFO("[START] Now Server listening on port %d, EMdsockfd: %d"
             ,svr_port, fd);
  
     /* notify to qemu that emuld is ready */
@@ -191,7 +190,7 @@ bool init_server0(int svr_port, int* ret_fd)
 
     if (!epoll_ctl_add(fd))
     {
-        fprintf(stderr, "Epoll control fails.\n");
+        LOGERR("Epoll control fails.");
         goto fail;
     }
 
@@ -215,17 +214,17 @@ void emuld_ready()
     char *temp_sdbport;
     temp_sdbport = getenv("sdb_port");
     if(temp_sdbport == NULL) {
-        fprintf(stderr, "failed to get env variable from sdb_port\n");
+        LOGERR("failed to get env variable from sdb_port");
         return;
     }
 
     port = strtol(temp_sdbport, &ptr, 10);
     port = port + 3;
 
-    fprintf(stderr, "guest_server port: %d\n", port);
+    LOGINFO("guest_server port: %d", port);
 
     if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
-        fprintf(stderr, "socket error!\n");
+        LOGERR("socket error!");
         return;
     }
 
@@ -233,21 +232,21 @@ void emuld_ready()
     si_other.sin_family = AF_INET;
     si_other.sin_port = htons(port);
     if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
-        fprintf(stderr, "inet_aton() failed\n");
+        LOGERR("inet_aton() failed");
     }
 
     memset(buf, '\0', sizeof(buf));
 
     sprintf(buf, "5\n");
 
-    fprintf(stderr, "send message to guest server\n");
+    LOGINFO("send message 5\\n to guest server");
 
     while(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
     {
-        fprintf(stderr, "sendto error! retry sendto\n");
+        LOGERR("sendto error! retry sendto");
         usleep(1000);
     }
-    fprintf(stderr, "emuld is ready.\n");
+    LOGINFO("emuld is ready.");
 
     close(s);
 
@@ -260,13 +259,13 @@ void* init_vm_connect(void* data)
 
     set_vm_connect_status(0);
 
-    LOG("init_vm_connect start\n");
+    LOGINFO("init_vm_connect start");
 
     pthread_detach(pthread_self());
     /* Open TCP Socket */
     if ((g_fd[fdtype_vmodem] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        fprintf(stderr, "Server Start Fails. : Can't open stream socket \n");
+        LOGERR("Server Start Fails. : Can't open stream socket.");
         exit(0);
     }
 
@@ -281,10 +280,10 @@ void* init_vm_connect(void* data)
     {
         ret = connect(g_fd[fdtype_vmodem], (struct sockaddr *)&vm_addr, sizeof(vm_addr));
 
-        LOG("vm_sockfd: %d, connect ret: %d\n", g_fd[fdtype_vmodem], ret);
+        LOGDEBUG("vm_sockfd: %d, connect ret: %d", g_fd[fdtype_vmodem], ret);
 
         if(ret < 0) {
-            LOG("connection failed to vmodem! try \n");
+            LOGERR("connection failed to vmodem! try.");
             sleep(1);
         }
     }
@@ -305,11 +304,11 @@ bool epoll_ctl_add(const int fd)
 
     if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
     {
-        fprintf(stderr, "Epoll control fails.\n");
+        LOGERR("Epoll control fails.");
         return false;
     }
 
-    printf("[START] epoll events set success for server\n");
+    LOGINFO("[START] epoll events add fd success for server");
     return true;
 }
 
@@ -318,11 +317,11 @@ bool epoll_init(void)
     g_epoll_fd = epoll_create(MAX_EVENTS); // create event pool
     if(g_epoll_fd < 0)
     {
-        fprintf(stderr, "Epoll create Fails.\n");
+        LOGERR("Epoll create Fails.");
         return false;
     }
 
-    LOG("[START] epoll creation success\n");
+    LOGINFO("[START] epoll creation success");
     return true;
 }
 
@@ -349,58 +348,6 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
 
     return 0;
 }
-
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-
-void udp_init(void)
-{
-    char emul_ip[HOST_NAME_MAX+1];
-    struct addrinfo *res;
-    struct addrinfo hints;
-    int rc;
-
-    LOG("start");
-
-    memset(emul_ip, 0, sizeof(emul_ip));
-    if (gethostname(emul_ip, sizeof(emul_ip)) < 0)
-    {
-        LOG("gethostname(): %s", strerror(errno));
-        assert(0);
-    }
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = IPPROTO_UDP;
-
-    if ((rc=getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res)) != 0)
-    {
-        if (rc == EAI_SYSTEM)
-            LOG("getaddrinfo(sensord): %s", strerror(errno));
-        else
-            LOG("getaddrinfo(sensord): %s", gai_strerror(rc));
-        assert(0);
-    }
-
-    if ((g_fd[fdtype_sensor] = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
-    {
-        fprintf(stderr, "socket error!\n");
-    }
-
-    if (res->ai_addrlen > sizeof(si_sensord_other))
-    {
-        LOG("sockaddr structure too big");
-        /* XXX: if you `return' remember to clean up */
-        assert(0);
-    }
-    memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
-    memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
-}
-
-#undef STR_HELPER
-#undef STR
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {
@@ -471,8 +418,8 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd)
     int readed;
     readed = read_header(fd, &ijcmd->msg);
 
-    LOG("action: %d", ijcmd->msg.action);
-    LOG("length: %d", ijcmd->msg.length);
+    LOGDEBUG("action: %d", ijcmd->msg.action);
+    LOGDEBUG("length: %d", ijcmd->msg.length);
 
     if (readed <= 0)
         return false;
@@ -508,7 +455,7 @@ bool read_id(const int fd, ijcommand* ijcmd)
     char* readbuf = NULL;
     int readed = recv_data(fd, &readbuf, ID_SIZE);
 
-    LOG("read_id : receive size: %d", readed);
+    LOGDEBUG("read_id : receive size: %d", readed);
 
     if (readed <= 0)
     {
@@ -517,12 +464,12 @@ bool read_id(const int fd, ijcommand* ijcmd)
         return false;
     }
 
-    LOG("identifier: %s", readbuf);
+    LOGDEBUG("identifier: %s", readbuf);
 
     memset(ijcmd->cmd, '\0', sizeof(ijcmd->cmd));
     int parselen = parse_val(readbuf, 0x0a, ijcmd->cmd);
 
-    LOG("parse_len: %d, buf = %s, fd=%d", parselen, ijcmd->cmd, fd);
+    LOGDEBUG("parse_len: %d, buf = %s, fd=%d", parselen, ijcmd->cmd, fd);
 
     if (readbuf)
     {
@@ -536,12 +483,12 @@ bool read_id(const int fd, ijcommand* ijcmd)
 
 void recv_from_vmodem(int fd)
 {
-    printf("recv_from_vmodem\n");
+    LOGDEBUG("recv_from_vmodem");
 
     ijcommand ijcmd;
     if (!read_ijcmd(fd, &ijcmd))
     {
-        LOG("fail to read ijcmd\n");
+        LOGINFO("fail to read ijcmd");
 
         set_vm_connect_status(0);
 
@@ -549,12 +496,12 @@ void recv_from_vmodem(int fd)
 
         if (pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
         {
-            LOG("pthread create fail!");
+            LOGERR("pthread create fail!");
         }
         return;
     }
 
-    LOG("vmodem data length: %d", ijcmd.msg.length);
+    LOGDEBUG("vmodem data length: %d", ijcmd.msg.length);
     const int tmplen = HEADER_SIZE + ijcmd.msg.length;
     char* tmp = (char*) malloc(tmplen);
 
@@ -565,7 +512,7 @@ void recv_from_vmodem(int fd)
             memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
 
         if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_TELEPHONY, (const char*) tmp, tmplen)) {
-            LOG("msg_send_to_evdi: failed\n");
+            LOGERR("msg_send_to_evdi: failed");
         }
 
         free(tmp);
@@ -586,7 +533,7 @@ void recv_from_vmodem(int fd)
 
 void recv_from_ij(int fd)
 {
-    printf("recv_from_ij\n");
+    LOGDEBUG("recv_from_ij");
 
     ijcommand ijcmd;
 
@@ -600,7 +547,7 @@ void recv_from_ij(int fd)
 
     if (!read_ijcmd(fd, &ijcmd))
     {
-        LOG("fail to read ijcmd\n");
+        LOGERR("fail to read ijcmd");
         return;
     }
 
@@ -631,7 +578,7 @@ void recv_from_ij(int fd)
     }
     else
     {
-        LOG("Unknown packet: %s", ijcmd.cmd);
+        LOGERR("Unknown packet: %s", ijcmd.cmd);
         close_cli (fd);
     }
 }
@@ -645,12 +592,12 @@ bool accept_proc(const int server_fd)
     cli_sockfd = accept(server_fd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
     if(cli_sockfd < 0)
     {
-        fprintf(stderr, "accept error\n");
+        LOGERR("accept error");
         return false;
     }
     else
     {
-        LOG("[Accept] New client connected. fd:%d, port:%d"
+        LOGINFO("[Accept] New client connected. fd:%d, port:%d"
                 ,cli_sockfd, cli_addr.sin_port);
 
         clipool_add(cli_sockfd, cli_addr.sin_port, fdtype_ij);
@@ -667,7 +614,7 @@ static void msgproc_suspend(int fd, ijcommand* ijcmd, bool evdi)
         set_lock_state(SUSPEND_UNLOCK);
     }
 
-	LOG("[Suspend] Set lock state as %d (1: lock, other: unlock)\n", ijcmd->msg.action);
+	LOGINFO("[Suspend] Set lock state as %d (1: lock, other: unlock)", ijcmd->msg.action);
 }
 
 static void send_default_suspend_req(void)
@@ -734,15 +681,13 @@ void process_evdi_command(ijcommand* ijcmd)
     }
     else
     {
-        LOG("Unknown packet: %s", ijcmd->cmd);
+        LOGERR("Unknown packet: %s", ijcmd->cmd);
     }
 }
 
-//static long recv_count = 0;
-
 void recv_from_evdi(evdi_fd fd)
 {
-    printf("recv_from_evdi\n");
+    LOGDEBUG("recv_from_evdi");
     int readed;
 
     struct msg_info _msg;
@@ -758,8 +703,7 @@ void recv_from_evdi(evdi_fd fd)
         {
             if (errno != EAGAIN)
             {
-                perror ("recv_from_evdi : EAGAIN\n");
-                LOG("EAGAIN\n");
+                LOGERR("EAGAIN");
                 return;
             }
         }
@@ -769,8 +713,7 @@ void recv_from_evdi(evdi_fd fd)
         }
     }
 
-    //LOG("RECV COUNT = %d\n", ++recv_count);
-    LOG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s\n",
+    LOGDEBUG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
             readed, _msg.count, _msg.index, _msg.use, _msg.buf);
 
     g_synbuf.reset_buf();
@@ -780,7 +723,7 @@ void recv_from_evdi(evdi_fd fd)
     ijcommand ijcmd;
     readed = g_synbuf.read(ijcmd.cmd, ID_SIZE);
 
-    LOG("ij id : %s\n", ijcmd.cmd);
+    LOGDEBUG("ij id : %s", ijcmd.cmd);
 
     // TODO : check
     if (readed < ID_SIZE)
@@ -796,23 +739,23 @@ void recv_from_evdi(evdi_fd fd)
     int len = ijcmd.msg.length;
 
 
-    LOG("HEADER : action = %d, group = %d, length = %d\n", act, grp, len);
+    LOGDEBUG("HEADER : action = %d, group = %d, length = %d", act, grp, len);
 
     if (ijcmd.msg.length > 0)
     {
         ijcmd.data = (char*) malloc(ijcmd.msg.length);
         if (!ijcmd.data)
         {
-            LOG("failed to allocate memory\n");
+            LOGERR("failed to allocate memory");
             return;
         }
         readed = g_synbuf.read(ijcmd.data, ijcmd.msg.length);
 
-        LOG("DATA : %s\n", ijcmd.data);
+        LOGDEBUG("DATA : %s", ijcmd.data);
 
         if (readed < ijcmd.msg.length)
         {
-            LOG("received data is insufficient");
+            LOGERR("received data is insufficient");
             //return;
         }
     }
@@ -829,7 +772,7 @@ bool server_process(void)
 
     if (nfds == -1 && errno != EAGAIN && errno != EINTR)
     {
-        fprintf(stderr, "epoll wait(%d)\n", errno);
+        LOGERR("epoll wait(%d)", errno);
         return true;
     }
 
@@ -861,8 +804,7 @@ bool server_process(void)
 void end_server(int sig)
 {
     close(g_fd[fdtype_server]); /* close server socket */
-    close(g_fd[fdtype_sensor]);
-    LOG("[SHUTDOWN] Server closed by signal %d",sig);
+    LOGINFO("[SHUTDOWN] Server closed by signal %d",sig);
 
     exit(0);
 }
@@ -871,14 +813,7 @@ int main( int argc , char *argv[])
 {
     int state;
 
-    //if(log_print == 1)
-    {
-        // for emuld log file
-        systemcall("rm /var/log/emuld.log");
-        systemcall("touch /var/log/emuld.log");
-    }
-
-    LOG("start");
+    LOGINFO("emuld start");
     /* entry , argument check and process */
     if(argc < 3){
         g_svr_port = DEFAULT_PORT;
@@ -886,7 +821,7 @@ int main( int argc , char *argv[])
         if(strcmp("-port", argv[1]) ==  0 ) {
             g_svr_port = atoi(argv[2]);
             if(g_svr_port < 1024) {
-                fprintf(stderr, "[STOP] port number invalid : %d\n",g_svr_port);
+                LOGERR("[STOP] port number invalid : %d",g_svr_port);
                 exit(0);
             }
         }
@@ -911,18 +846,16 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
-    LOG("[START] epoll events set success for server");
+    LOGINFO("[START] epoll events set success for server");
 
     set_vm_connect_status(0);
 
     if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
     {
-        LOG("pthread create fail!");
+        LOGERR("pthread create fail!");
         close(g_epoll_fd);
         exit(0);
     }
-
-    udp_init();
 
     send_default_suspend_req();
 
@@ -939,18 +872,18 @@ int main( int argc , char *argv[])
     {
         int status;
         pthread_join(tid[0], (void **)&status);
-        LOG("vmodem thread end %d\n", status);
+        LOGINFO("vmodem thread end %d", status);
     }
 
     state = pthread_mutex_destroy(&mutex_vmconnect);
     if (state != 0)
     {
-        LOG("mutex_vmconnect is failed to destroy.");
+        LOGERR("mutex_vmconnect is failed to destroy.");
     }
 
     stop_listen();
 
-    fprintf(stderr, "emuld exit\n");
+    LOGINFO("emuld exit");
 
     return 0;
 }

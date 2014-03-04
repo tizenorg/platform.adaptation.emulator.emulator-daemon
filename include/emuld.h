@@ -54,7 +54,6 @@
 #include <queue>
 #include <map>
 
-#include "log.h"
 #include "emuld_common.h"
 #include "evdi_protocol.h"
 #include "evdi.h"
@@ -68,7 +67,6 @@
 #define DEFAULT_PORT        3577
 #define VMODEM_PORT         3578
 #define GPSD_PORT           3579
-#define SENSORD_PORT        3580
 #define SRV_IP              "10.0.2.2"
 #define ID_SIZE             10
 #define HEADER_SIZE         4
@@ -86,7 +84,6 @@ enum
     fdtype_device = 1,
     fdtype_vmodem = 2,
     fdtype_ij     = 3,
-    fdtype_sensor = 4, //udp
     fdtype_max    = 5
 };
 
@@ -94,6 +91,17 @@ extern pthread_t tid[MAX_CLIENT + 1];
 extern struct sockaddr_in si_sensord_other;
 extern int g_fd[fdtype_max];
 
+#if defined(ENABLE_DLOG_OUT)
+#  define LOG_TAG			"EMULATOR_DAEMON"
+#  include <dlog/dlog.h>
+#  define LOGINFO LOGI
+#  define LOGERR LOGE
+#  define LOGDEBUG LOGD
+#else
+#  define LOGINFO(fmt, arg...)
+#  define LOGERR(fmt, arg...)
+#  define LOGDEBUG(fmt, arg...)
+#endif
 
 #define IJTYPE_TELEPHONY    "telephony"
 #define IJTYPE_SDCARD       "sdcard"
@@ -132,11 +140,6 @@ void recv_from_evdi(evdi_fd fd);
 int powerdown_by_force(void);
 // location
 void setting_location(char* databuf);
-
-#define LOG(fmt, arg...) \
-    do { \
-        log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
-    } while (0)
 
 #include <map>
 

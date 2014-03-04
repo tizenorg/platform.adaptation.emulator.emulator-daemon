@@ -89,6 +89,8 @@ char* get_usb_status(void* , bool);
 char* get_earjack_status(void* , bool);
 char* get_rssi_level(void* , bool);
 
+void device_parser(char*);
+
 // Sensor
 char* get_proximity_status(void* , bool);
 char* get_light_level(void* , bool);

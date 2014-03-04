@@ -72,7 +72,7 @@ char* get_mount_info() {
 
     aFile = setmntent("/proc/mounts", "r");
     if (aFile == NULL) {
-        LOG("/proc/mounts is not exist");
+        LOGERR("/proc/mounts is not exist");
         return NULL;
     }
     char* mountinfo = new char[512];
@@ -82,7 +82,7 @@ char* get_mount_info() {
 
         if (strcmp(ent->mnt_dir, "/opt/storage/sdcard") == 0)
         {
-            LOG(",%s,%s,%d,%s,%d,%s\n",
+            LOGDEBUG(",%s,%s,%d,%s,%d,%s",
                             ent->mnt_fsname, ent->mnt_dir, ent->mnt_freq, ent->mnt_opts, ent->mnt_passno, ent->mnt_type);
             sprintf(mountinfo,",%s,%s,%d,%s,%d,%s\n",
                             ent->mnt_fsname, ent->mnt_dir, ent->mnt_freq, ent->mnt_opts, ent->mnt_passno, ent->mnt_type);
@@ -131,7 +131,7 @@ void* mount_sdcard(void* data)
     LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
     memset(packet, 0, sizeof(LXT_MESSAGE));
 
-    LOG("start sdcard mount thread");
+    LOGINFO("start sdcard mount thread");
 
     pthread_detach(pthread_self());
 
@@ -156,7 +156,7 @@ void* mount_sdcard(void* data)
 
         if (i != 10)
         {
-            LOG( "%s is exist", file_name);
+            LOGDEBUG( "%s is exist", file_name);
             packet->length = strlen(SDpath);        // length
             packet->group = 11;             // sdcard
             if (ret == 0)
@@ -165,7 +165,7 @@ void* mount_sdcard(void* data)
                 packet->action = 5; // failed
 
             //
-            LOG("SDpath is %s", SDpath);
+            LOGDEBUG("SDpath is %s", SDpath);
 
             const int tmplen = HEADER_SIZE + packet->length;
             char* tmp = (char*) malloc(tmplen);
@@ -200,7 +200,7 @@ void* mount_sdcard(void* data)
         }
         else
         {
-            LOG( "%s is not exist", file_name);
+            LOGERR( "%s is not exist", file_name);
             sleep(1);
         }
     }
@@ -231,7 +231,7 @@ int umount_sdcard(const int fd, bool is_evdi)
     }
     memset(packet, 0, sizeof(LXT_MESSAGE));
 
-    LOG("start sdcard umount");
+    LOGINFO("start sdcard umount");
 
     pthread_cancel(tid[1]);
 
@@ -249,12 +249,12 @@ int umount_sdcard(const int fd, bool is_evdi)
 
                 send(fd, (void*)packet, sizeof(char) * HEADER_SIZE, 0);
 
-                LOG("SDpath is %s", SDpath);
+                LOGDEBUG("SDpath is %s", SDpath);
                 send(fd, SDpath, packet->length, 0);
             }
             else if (is_evdi)
             {
-                LOG("SDpath is %s", SDpath);
+                LOGDEBUG("SDpath is %s", SDpath);
 
                 packet->length = strlen(SDpath);        // length
                 packet->group = 11;                     // sdcard
@@ -281,7 +281,7 @@ int umount_sdcard(const int fd, bool is_evdi)
         }
         else
         {
-            LOG( "%s is not exist", file_name);
+            LOGERR( "%s is not exist", file_name);
         }
     }
 
@@ -301,17 +301,17 @@ int powerdown_by_force(void)
     gettimeofday(&now, NULL);
     /* Waiting until power off duration and displaying animation */
     while (now.tv_sec - tv_start_poweroff.tv_sec < poweroff_duration) {
-        LOG("wait");
+        LOGINFO("power down wait");
         usleep(100000);
         gettimeofday(&now, NULL);
     }
 
-    LOG("Power off by force");
-    LOG("sync");
+    LOGINFO("Power off by force");
+    LOGINFO("sync");
 
     sync();
 
-    LOG("poweroff");
+    LOGINFO("poweroff");
 
     reboot(RB_POWER_OFF);
 
@@ -339,22 +339,22 @@ void setting_location(char* databuf)
             sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2 -f");
             break;
         default:
-            LOG("error(%s) : stop replay mode", databuf);
+            LOGERR("error(%s) : stop replay mode", databuf);
             sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
             break;
         }
-        LOG("Location Command : %s", command);
+        LOGDEBUG("Location Command : %s", command);
         systemcall(command);
     } else {
         *s = '\0';
         int mode = atoi(databuf);
         if(mode == 1) { // NMEA MODE (LOG MODE)
             sprintf(command, "vconftool set -t string db/location/replay/FileName \"%s\"", s+1);
-            LOG("%s", command);
+            LOGDEBUG("%s", command);
             systemcall(command);
             memset(command, 0, 256);
             sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
-            LOG("%s", command);
+            LOGDEBUG("%s", command);
             systemcall(command);
         } else if(mode == 2) {
             memset(latitude,  0, 128);
@@ -367,12 +367,12 @@ void setting_location(char* databuf)
             //strcpy(latitude, databuf);
             // Latitude
             sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", latitude);
-            LOG("%s", command);
+            LOGDEBUG("%s", command);
             systemcall(command);
 
             // Longitude
             sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", longitude);
-            LOG("%s", command);
+            LOGDEBUG("%s", command);
             systemcall(command);
         }
     }
@@ -400,80 +400,80 @@ void* setting_device(void* data)
     case BATTERY_LEVEL:
         msg = get_battery_level((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting battery level");
+            LOGERR("failed getting battery level");
         }
         break;
     case BATTERY_CHARGER:
         msg = get_battery_charger((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting battery charger state");
+            LOGERR("failed getting battery charger state");
         }
         break;
     case USB_STATUS:
         msg = get_usb_status((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting usb status");
+            LOGERR("failed getting usb status");
         }
         break;
     case EARJACK_STATUS:
         msg = get_earjack_status((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting earjack status");
+            LOGERR("failed getting earjack status");
         }
         break;
     case RSSI_LEVEL:
         msg = get_rssi_level((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting rssi level");
+            LOGERR("failed getting rssi level");
         }
         break;
     case MOTION_VALUE:
-        LOG("not support getting motion value");
+        LOGERR("not support getting motion value");
         break;
     case LOCATION_STATUS:
         msg = get_location_status((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting location status");
+            LOGERR("failed getting location status");
         }
         break;
     case NFC_STATUS:
         msg = get_nfc_status((void*)packet, is_evdi);
         if (msg ==0) {
-            LOG("failed getting nfc status");
+            LOGERR("failed getting nfc status");
         }
         break;
     case ACCEL_VALUE:
         msg = get_acceleration_value((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("falied getting acceleration value");
+            LOGERR("falied getting acceleration value");
         }
         break;
     case GYRO_VALUE:
         msg = get_gyroscope_value((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting gyroscope value");
+            LOGERR("failed getting gyroscope value");
         }
         break;
     case MAG_VALUE:
         msg = get_magnetic_value((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting magnetic value");
+            LOGERR("failed getting magnetic value");
         }
         break;
     case LIGHT_VALUE:
         msg = get_light_level((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting light level");
+            LOGERR("failed getting light level");
         }
         break;
     case PROXI_VALUE:
         msg = get_proximity_status((void*)packet, is_evdi);
         if (msg == 0) {
-            LOG("failed getting proximity status");
+            LOGERR("failed getting proximity status");
         }
         break;
     default:
-        //TODO
+        LOGERR("Wrong action ID. %d", param->ActionID);
     break;
     }
 
@@ -481,11 +481,11 @@ void* setting_device(void* data)
     {
         if (msg != 0)
         {
-            LOG("send data to injector");
+            LOGDEBUG("send data to injector");
         }
         else
         {
-            LOG("send error message to injector");
+            LOGERR("send error message to injector");
             memset(packet, 0, sizeof(LXT_MESSAGE));
             packet->length = 0;
             packet->group  = STATUS;
@@ -503,7 +503,7 @@ void* setting_device(void* data)
     {
         if (msg == 0)
         {
-            LOG("send error message to injector");
+            LOGDEBUG("send error message to injector");
             memset(packet, 0, sizeof(LXT_MESSAGE));
             packet->length = 0;
             packet->group = STATUS;
@@ -511,7 +511,7 @@ void* setting_device(void* data)
         }
         else
         {
-            LOG("send data to injector");
+            LOGDEBUG("send data to injector");
         }
 
         const int tmplen = HEADER_SIZE + packet->length;
@@ -550,7 +550,7 @@ void* setting_device(void* data)
 
 bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_telephony\n");
+    LOGDEBUG("msgproc_telephony");
 
     if (!is_vm_connected())
         return false;
@@ -562,7 +562,7 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         perror("vmodem send error");
     }
 
-    LOG("sent to vmodem = %d, err = %d\n", sent, errno);
+    LOGDEBUG("sent to vmodem = %d, err = %d", sent, errno);
 
     sent = send(g_fd[fdtype_vmodem], ijcmd->data, ijcmd->msg.length, 0);
     if (sent == -1)
@@ -570,15 +570,14 @@ bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         perror("vmodem send error");
     }
 
-    LOG("sent to vmodem = %d, err = %d\n", sent, errno);
+    LOGDEBUG("sent to vmodem = %d, err = %d", sent, errno);
 
     return true;
 }
 
 bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_sensor\n");
-    int sslen = sizeof(si_sensord_other);
+    LOGDEBUG("msgproc_sensor");
 
     if (ijcmd->msg.group == STATUS)
     {
@@ -595,23 +594,23 @@ bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
         if (pthread_create(&tid[2], NULL, setting_device, (void*)param) != 0)
         {
-            LOG("pthread create fail!");
+            LOGERR("sensor pthread create fail!");
             return false;
         }
 
     }
-    else if (sendto(g_fd[fdtype_sensor], ijcmd->data, ijcmd->msg.length, 0,
-            (struct sockaddr*) &si_sensord_other, sslen) == -1)
+    else
     {
-        LOG("sendto error!");
-        return false;
+		if (ijcmd->data != NULL && strlen(ijcmd->data) > 0) {
+        	device_parser(ijcmd->data);
+		}
     }
     return true;
 }
 
 bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_location\n");
+    LOGDEBUG("msgproc_location");
     if (ijcmd->msg.group == STATUS)
     {
         setting_device_param* param = new setting_device_param();
@@ -625,7 +624,7 @@ bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
         if (pthread_create(&tid[2], NULL, setting_device, (void*) param) != 0)
         {
-            LOG("pthread create fail!");
+            LOGERR("location pthread create fail!");
             return false;
         }
     }
@@ -638,7 +637,7 @@ bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
 bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_nfc\n");
+    LOGDEBUG("msgproc_nfc");
 
     if (ijcmd->msg.group == STATUS)
     {
@@ -653,7 +652,7 @@ bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
         if (pthread_create(&tid[2], NULL, setting_device, (void*) param) != 0)
         {
-            LOG("pthread create fail!");
+            LOGERR("nfc pthread create fail!");
             return false;
         }
     }
@@ -662,7 +661,7 @@ bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         FILE* fd;
         fd = fopen(PATH_NFC_DATA, "w");
         if (!fd) {
-            LOG("nfc file open fail!");
+            LOGERR("nfc file open fail!");
             return false;
         }
         fprintf(fd, "%s", ijcmd->data);
@@ -674,14 +673,13 @@ bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
 bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_system\n");
+    LOGDEBUG("msgproc_system");
 
-    LOG("/etc/rc.d/rc.shutdown, sync, reboot(RB_POWER_OFF)");
+    LOGINFO("/etc/rc.d/rc.shutdown, sync, reboot(RB_POWER_OFF)");
 
     sync();
 
     systemcall("/etc/rc.d/rc.shutdown &");
-
 
     gettimeofday(&tv_start_poweroff, NULL);
 
@@ -692,7 +690,7 @@ bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 
 bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {
-    LOG("msgproc_sdcard\n");
+    LOGDEBUG("msgproc_sdcard");
 
     const int tmpsize = ijcmd->msg.length;
 
@@ -703,7 +701,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
     char* ret = NULL;
     ret = strtok(tmpdata, token);
 
-    LOG("%s", ret);
+    LOGDEBUG("%s", ret);
 
     int mount_val = atoi(ret);
     int mount_status = 0;
@@ -722,7 +720,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
                 strcpy(SDpath, ret);
-                LOG("sdcard path is %s", SDpath);
+                LOGDEBUG("sdcard path is %s", SDpath);
 
                 send_guest_server(ijcmd->data);
 
@@ -733,7 +731,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                 param->is_evdi = is_evdi;
 
                 if (pthread_create(&tid[1], NULL, mount_sdcard, (void*) param) != 0)
-                    LOG("pthread create fail!");
+                    LOGERR("mount sdcard pthread create fail!");
             }
 
             break;
@@ -750,7 +748,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                 mntData->length = strlen(SDpath);   // length
                 mntData->group = 11;            // sdcard
 
-                LOG("SDpath is %s", SDpath);
+                LOGDEBUG("SDpath is %s", SDpath);
 
                 switch (mount_status)
                 {
@@ -836,7 +834,7 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
             }
             break;
         default:
-            LOG("unknown data %s", ret);
+            LOGERR("unknown data %s", ret);
             break;
     }
     return true;
@@ -847,7 +845,7 @@ void send_guest_server(char* databuf)
 {
     if (!databuf)
     {
-        LOG("invalid data buf");
+        LOGERR("invalid data buf");
         return;
     }
 
@@ -861,7 +859,7 @@ void send_guest_server(char* databuf)
     fd = fopen(SDB_PORT_FILE, "r");
     if(!fd)
     {
-        LOG("fail to open %s file", SDB_PORT_FILE);
+        LOGERR("fail to open %s file", SDB_PORT_FILE);
     }
 
     if (fgets(fbuf, 16, fd))
@@ -870,7 +868,7 @@ void send_guest_server(char* databuf)
     }
     else
     {
-        LOG("fgets failure\n");
+        LOGERR("fgets failure");
     }
 
     fclose(fd);
@@ -878,7 +876,7 @@ void send_guest_server(char* databuf)
     s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (s == -1)
     {
-        LOG("socket error!");
+        LOGERR("socket error!");
         return;
     }
 
@@ -887,15 +885,15 @@ void send_guest_server(char* databuf)
     si_other.sin_port = htons(port);
     if (inet_aton(SRV_IP, &si_other.sin_addr) == 0)
     {
-          fprintf(stderr, "inet_aton() failed\n");
+          LOGERR("inet_aton() failed");
     }
 
     memset(buf, '\0', sizeof(buf));
     snprintf(buf, sizeof(buf), "4\n%s", databuf);
-    LOG("sendGuestServer msg: %s", buf);
+    LOGDEBUG("sendGuestServer msg: %s", buf);
     if (sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
     {
-        LOG("sendto error!");
+        LOGERR("sendto error!");
     }
 
     close(s);
