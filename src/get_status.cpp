@@ -26,6 +26,7 @@
  */
 
 
+#include "emuld.h"
 #include "emuld_common.h"
 #include <vconf/vconf.h>
 #include <vconf/vconf-keys.h>
@@ -79,7 +80,7 @@ static int inline get_vconf_status(char* msg, const char* key, int buf_len, bool
     int status;
     int ret = vconf_get_int(key, &status);
     if (ret != 0) {
-        //LOG("cannot get vconf key - %s", key);
+        LOGERR("cannot get vconf key - %s", key);
         return -1;
     }
 
@@ -98,7 +99,7 @@ char* get_usb_status(void* p, bool is_evdi)
     char* message = __tmpalloc(5);
     int length = get_file_status(message, "/sys/devices/platform/jack/usb_online", 5, is_evdi);
     if (length < 0){
-        //LOG("get usb status error - %d", length);
+        LOGERR("get usb status error - %d", length);
         length = 0;
     }
 
@@ -225,7 +226,7 @@ char* get_acceleration_value(void* p, bool is_evdi)
 
     //fscanf(fd, "%d, %d, %d", message);
     if (!fgets(message, 128, fd))
-        fprintf(stderr, "fgets failure");
+        LOGERR("accel xyz fgets failure");
 
     fclose(fd);
 
@@ -296,7 +297,7 @@ char* get_magnetic_value(void* p, bool is_evdi)
     char* message = __tmpalloc(128);
     if (!fgets(message, 128, fd))
     {
-        fprintf(stderr, "fgets failure");
+        LOGERR("tesla fgets failure");
     }
     fclose(fd);
 
