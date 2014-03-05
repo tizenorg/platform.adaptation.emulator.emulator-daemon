@@ -564,10 +564,6 @@ void recv_from_ij(int fd)
     {
         msgproc_location(fd, &ijcmd, false);
     }
-    else if (strncmp(ijcmd.cmd, "nfc", 3) == 0)
-    {
-        msgproc_nfc(fd, &ijcmd, false);
-    }
     else if (strncmp(ijcmd.cmd, "system", 6) == 0)
     {
         msgproc_system(fd, &ijcmd, false);
@@ -662,10 +658,6 @@ void process_evdi_command(ijcommand* ijcmd)
     else if (strncmp(ijcmd->cmd, "location", 8) == 0)
     {
         msgproc_location(fd, ijcmd, true);
-    }
-    else if (strncmp(ijcmd->cmd, "nfc", 3) == 0)
-    {
-        msgproc_nfc(fd, ijcmd, true);
     }
     else if (strncmp(ijcmd->cmd, "system", 6) == 0)
     {

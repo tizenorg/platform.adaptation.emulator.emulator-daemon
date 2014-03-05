@@ -37,10 +37,11 @@
 #include <pthread.h>
 #include <stdarg.h>
 
-#define SENSOR_DEBUG
+#include <vconf/vconf.h>
+#include <vconf/vconf-keys.h>
 
 #include "emuld.h"
-#include "emuld_proc.h"
+#include "emuld_common.h"
 
 static int battery_level = 50;
 pthread_t d_tid[16];
@@ -105,16 +106,6 @@ enum motion_move{
     SENSOR_MOTION_MOVE_NONE = 0,
     SENSOR_MOTION_MOVE_MOVETOCALL = 1
 };
-
-#define PATH_SENSOR_ACCEL_XYZ       "/sys/devices/virtual/sensor/accel/xyz"
-#define PATH_SENSOR_PROXI_VO        "/sys/devices/virtual/sensor/proxi/vo"
-#define PATH_SENSOR_LIGHT_ADC       "/sys/devices/virtual/sensor/light/adc"
-#define PATH_SENSOR_LIGHT_LEVEL     "/sys/devices/virtual/sensor/light/level"
-#define PATH_SENSOR_GEO_RAW         "/sys/devices/virtual/sensor/geo/raw"
-#define PATH_SENSOR_GEO_TESLA       "/sys/devices/virtual/sensor/geo/tesla"
-#define PATH_SENSOR_GYRO_X_RAW      "/sys/devices/virtual/sensor/gyro/gyro_x_raw"
-#define PATH_SENSOR_GYRO_Y_RAW      "/sys/devices/virtual/sensor/gyro/gyro_y_raw"
-#define PATH_SENSOR_GYRO_Z_RAW      "/sys/devices/virtual/sensor/gyro/gyro_z_raw"
 
 int check_nodes();
 
@@ -285,7 +276,7 @@ int parse_batterylevel_data(int len, char *buffer)
             charger = 1;
         }
 
-        fd = fopen("/sys/class/power_supply/battery/capacity", "w");
+        fd = fopen(PATH_BATTERY_CAPACITY, "w");
         if(!fd)
         {
             LOGERR("fopen fail");
@@ -294,7 +285,7 @@ int parse_batterylevel_data(int len, char *buffer)
         fprintf(fd, "%d", level);
         fclose(fd);
 
-        fd = fopen("/sys/devices/platform/jack/charger_online", "r");
+        fd = fopen(PATH_BATTERY_CHARGER_ON, "r");
         if(!fd)
         {
             LOGERR("fopen fail");
@@ -320,7 +311,7 @@ int parse_batterylevel_data(int len, char *buffer)
         }
         LOGDEBUG("charge_full: %d", charge_full);
 
-        fd = fopen("/sys/class/power_supply/battery/charge_full", "w");
+        fd = fopen(PATH_BATTERY_CHARGE_FULL, "w");
         if(!fd)
         {
             LOGERR("charge_full fopen fail");
@@ -331,7 +322,7 @@ int parse_batterylevel_data(int len, char *buffer)
 
         if(charger_online == 1)
         {
-            fd = fopen("/sys/class/power_supply/battery/charge_now", "w");
+            fd = fopen(PATH_BATTERY_CHARGE_NOW, "w");
             if(!fd)
             {
                 LOGERR("charge_now fopen fail");
@@ -352,7 +343,7 @@ int parse_batterylevel_data(int len, char *buffer)
         len += len1;
 
         charger = atoi(tmpbuf);
-        fd = fopen("/sys/devices/platform/jack/charger_online", "w");
+        fd = fopen(PATH_BATTERY_CHARGER_ON, "w");
         if(!fd)
         {
             LOGERR("charger_online fopen fail");
@@ -361,7 +352,7 @@ int parse_batterylevel_data(int len, char *buffer)
         fprintf(fd, "%d", charger);
         fclose(fd);
 
-        fd = fopen("/sys/class/power_supply/battery/charge_full", "w");
+        fd = fopen(PATH_BATTERY_CHARGE_FULL, "w");
         if(!fd)
         {
             LOGERR("charge_full fopen fail");
@@ -381,7 +372,7 @@ int parse_batterylevel_data(int len, char *buffer)
 
         system_msg("/usr/bin/sys_event device_charge_chgdet");
 
-        fd = fopen("/sys/class/power_supply/battery/charge_now", "w");
+        fd = fopen(PATH_BATTERY_CHARGE_NOW, "w");
         if(!fd)
         {
             LOGERR("charge_now fopen fail");
@@ -418,7 +409,7 @@ int parse_earjack_data(int len, char *buffer)
 
     x = atoi(tmpbuf);
 
-    fd = fopen("/sys/devices/platform/jack/earjack_online", "w");
+    fd = fopen(PATH_JACK_EARJACK, "w");
     if(!fd)
     {
         LOGERR("earjack_online fopen fail");
@@ -454,7 +445,7 @@ int parse_usb_data(int len, char *buffer)
 
     x = atoi(tmpbuf);
 
-    fd = fopen("/sys/devices/platform/jack/usb_online", "w");
+    fd = fopen(PATH_JACK_USB, "w");
     if(!fd)
     {
         LOGERR("usb_online fopen fail");
@@ -624,7 +615,7 @@ void* file_input_accel(void* param)
                     z = -1961330;
                 LOGINFO("z: %d", z);
 
-                dstFD = fopen("/opt/sensor/accel/xyz", "w");
+                dstFD = fopen(PATH_SENSOR_ACCEL_XYZ, "w");
                 if(!dstFD)
                 {
                     LOGINFO("fopen fail");
@@ -995,7 +986,7 @@ void* file_input_gyro(void* param)
                     z = -571;
                 LOGINFO("z: %d", z);
 
-                dstFD = fopen("/opt/sensor/gyro/gyro_x_raw", "w");
+                dstFD = fopen(PATH_SENSOR_GYRO_X_RAW, "w");
                 if(!dstFD)
                 {
                     LOGINFO("fopen fail");
@@ -1004,7 +995,7 @@ void* file_input_gyro(void* param)
                 fprintf(dstFD, "%d",x);
                 fclose(dstFD);
 
-                dstFD = fopen("/opt/sensor/gyro/gyro_y_raw", "w");
+                dstFD = fopen(PATH_SENSOR_GYRO_Y_RAW, "w");
                 if(!dstFD)
                 {
                     LOGINFO("fopen fail");
@@ -1013,7 +1004,7 @@ void* file_input_gyro(void* param)
                 fprintf(dstFD, "%d",y);
                 fclose(dstFD);
 
-                dstFD = fopen("/opt/sensor/gyro/gyro_z_raw", "w");
+                dstFD = fopen(PATH_SENSOR_GYRO_Z_RAW, "w");
                 if(!dstFD)
                 {
                     LOGINFO("fopen fail");
@@ -1134,3 +1125,350 @@ void device_parser(char *buffer)
         break;
     }
 }
+
+static int inline get_message(char* message, int status, int buf_len, bool is_evdi)
+{
+    if (is_evdi) {
+        sprintf(message, "%d", status);
+        return strlen(message);
+    } else {
+        // int to byte
+        message[3] = (char) (status & 0xff);
+        message[2] = (char) (status >> 8 & 0xff);
+        message[1] = (char) (status >> 16 & 0xff);
+        message[0] = (char) (status >> 24 & 0xff);
+        message[4] = '\0';
+    }
+
+    return 4;
+}
+
+static int inline get_status(const char* filename)
+{
+    int ret;
+    int status = 0;
+    FILE* fd = fopen(filename, "r");
+    if(!fd)
+        return -1;
+
+    ret = fscanf(fd, "%d", &status);
+    fclose(fd);
+
+    if (ret < 0) {
+        return ret;
+    }
+
+    return status;
+}
+
+static int inline get_file_status(char* msg, const char* filename, int buf_len, bool is_evdi)
+{
+    int status = get_status(filename);
+    if (status < 0)
+        return status;
+    return get_message(msg, status, buf_len, is_evdi);
+}
+
+static int inline get_vconf_status(char* msg, const char* key, int buf_len, bool is_evdi)
+{
+    int status;
+    int ret = vconf_get_int(key, &status);
+    if (ret != 0) {
+        LOGERR("cannot get vconf key - %s", key);
+        return -1;
+    }
+
+    return get_message(msg, status, buf_len, is_evdi);
+}
+
+char* __tmpalloc(const int size)
+{
+    char* message = (char*)malloc(sizeof(char) * size);
+    memset(message, 0, sizeof(char) * size);
+    return message;
+}
+
+char* get_usb_status(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_file_status(message, PATH_JACK_USB, 5, is_evdi);
+    if (length < 0){
+        LOGERR("get usb status error - %d", length);
+        length = 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = USB_STATUS;
+
+    return message;
+}
+
+char* get_earjack_status(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_file_status(message, PATH_JACK_EARJACK, 5, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = EARJACK_STATUS;
+
+    return message;
+}
+
+char* get_rssi_level(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_vconf_status(message, "memory/telephony/rssi", 5, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = RSSI_LEVEL;
+
+    return message;
+}
+
+char* get_battery_level(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_file_status(message, PATH_BATTERY_CAPACITY, 5, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = BATTERY_LEVEL;
+
+    return message;
+}
+
+char* get_battery_charger(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_file_status(message, PATH_BATTERY_CHARGE_NOW, 5, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = BATTERY_CHARGER;
+
+    return message;
+}
+
+char* get_proximity_status(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(5);
+    int length = get_file_status(message, PATH_SENSOR_PROXI_VO, 5, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = PROXI_VALUE;
+
+    return message;
+}
+
+char* get_light_level(void* p, bool is_evdi)
+{
+    char* message = __tmpalloc(6);
+    int length = get_file_status(message, PATH_SENSOR_LIGHT_ADC, 6, is_evdi);
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = LIGHT_VALUE;
+
+    return message;
+}
+
+char* get_acceleration_value(void* p, bool is_evdi)
+{
+    FILE* fd = fopen(PATH_SENSOR_ACCEL_XYZ, "r");
+    if(!fd)
+    {
+        return 0;
+    }
+
+    char* message = __tmpalloc(128);
+
+    //fscanf(fd, "%d, %d, %d", message);
+    if (!fgets(message, 128, fd))
+        LOGERR("accel xyz fgets failure");
+
+    fclose(fd);
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = strlen(message);
+    packet->group  = STATUS;
+    packet->action = ACCEL_VALUE;
+
+    return message;
+}
+
+char* get_gyroscope_value(void* p, bool is_evdi)
+{
+    int x, y, z;
+    int ret;
+
+    FILE* fd = fopen(PATH_SENSOR_GYRO_X_RAW, "r");
+    if(!fd)
+    {
+        return 0;
+    }
+    ret = fscanf(fd, "%d", &x);
+    fclose(fd);
+
+    fd = fopen(PATH_SENSOR_GYRO_Y_RAW, "r");
+    if(!fd)
+    {
+        return 0;
+    }
+    ret = fscanf(fd, "%d", &y);
+    fclose(fd);
+
+    fd = fopen(PATH_SENSOR_GYRO_Z_RAW, "r");
+    if(!fd)
+    {
+        return 0;
+    }
+    ret = fscanf(fd, "%d", &z);
+    fclose(fd);
+
+    char* message = __tmpalloc(128);
+
+    ret = sprintf(message, "%d, %d, %d", x, y, z);
+    if (ret < 0) {
+        free(message);
+        message = 0;
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = strlen(message);
+    packet->group  = STATUS;
+    packet->action = GYRO_VALUE;
+
+    return message;
+}
+
+char* get_magnetic_value(void* p, bool is_evdi)
+{
+    FILE* fd = fopen(PATH_SENSOR_GEO_TESLA, "r");
+    if(!fd)
+    {
+        return 0;
+    }
+
+    char* message = __tmpalloc(128);
+    if (!fgets(message, 128, fd))
+    {
+        LOGERR("tesla fgets failure");
+    }
+    fclose(fd);
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = strlen(message);
+    packet->group  = STATUS;
+    packet->action = MAG_VALUE;
+    return message;
+}
+
+char* get_location_status(void* p, bool is_evdi)
+{
+    int mode;
+    int ret = vconf_get_int("db/location/replay/ReplayMode", &mode);
+    if (ret != 0) {
+        return 0;
+    }
+
+    char* message = 0;
+
+    if (mode == 0)
+    { // STOP
+        message = (char*)malloc(5);
+        memset(message, 0, 5);
+
+        ret = sprintf(message, "%d", mode);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    }
+    else if (mode == 1)
+    { // NMEA MODE(LOG MODE)
+        char* temp = 0;
+        temp = (char*) vconf_get_str("db/location/replay/FileName");
+        if (temp == 0) {
+            //free(temp);
+            return 0;
+        }
+
+        message = (char*)malloc(256);
+        memset(message, 0, 256);
+        ret = sprintf(message, "%d,%s", mode, temp);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    } else if (mode == 2) { // MANUAL MODE
+        double latitude;
+        double logitude;
+        ret = vconf_get_dbl("db/location/replay/ManualLatitude", &latitude);
+        if (ret != 0) {
+            return 0;
+        }
+        ret = vconf_get_dbl("db/location/replay/ManualLongitude", &logitude);
+        if (ret != 0) {
+            return 0;
+        }
+        message = (char*)malloc(128);
+        memset(message, 0, 128);
+        ret = sprintf(message, "%d,%f,%f", mode, latitude, logitude);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = strlen(message);
+    packet->group  = STATUS;
+    packet->action = LOCATION_STATUS;
+
+    return message;
+}
+

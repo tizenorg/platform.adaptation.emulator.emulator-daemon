@@ -36,7 +36,6 @@
 
 #include "emuld_common.h"
 #include "emuld.h"
-#include "emuld_proc.h"
 #include <errno.h>
 
 #include <sys/mount.h>
@@ -436,12 +435,6 @@ void* setting_device(void* data)
             LOGERR("failed getting location status");
         }
         break;
-    case NFC_STATUS:
-        msg = get_nfc_status((void*)packet, is_evdi);
-        if (msg ==0) {
-            LOGERR("failed getting nfc status");
-        }
-        break;
     case ACCEL_VALUE:
         msg = get_acceleration_value((void*)packet, is_evdi);
         if (msg == 0) {
@@ -634,42 +627,6 @@ bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
     }
     return true;
 }
-
-bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
-{
-    LOGDEBUG("msgproc_nfc");
-
-    if (ijcmd->msg.group == STATUS)
-    {
-        setting_device_param* param = new setting_device_param();
-        if (!param)
-            return false;
-
-        param->get_status_sockfd = sockfd;
-        param->ActionID = ijcmd->msg.action;
-        param->is_evdi = is_evdi;
-        memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
-
-        if (pthread_create(&tid[2], NULL, setting_device, (void*) param) != 0)
-        {
-            LOGERR("nfc pthread create fail!");
-            return false;
-        }
-    }
-    else
-    {
-        FILE* fd;
-        fd = fopen(PATH_NFC_DATA, "w");
-        if (!fd) {
-            LOGERR("nfc file open fail!");
-            return false;
-        }
-        fprintf(fd, "%s", ijcmd->data);
-        fclose(fd);
-    }
-    return true;
-}
-
 
 bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
 {

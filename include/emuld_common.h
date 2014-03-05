@@ -61,7 +61,6 @@
 
 #define LOCATION_STATUS     120
 
-#define NFC_STATUS          121
 
 #define PATH_SENSOR_ACCEL_XYZ   "/sys/devices/virtual/sensor/accel/xyz"
 #define PATH_SENSOR_PROXI_VO    "/sys/devices/virtual/sensor/proxi/vo"
@@ -70,7 +69,17 @@
 #define PATH_SENSOR_GYRO_Y_RAW  "/sys/devices/virtual/sensor/gyro/gyro_y_raw"
 #define PATH_SENSOR_GYRO_Z_RAW  "/sys/devices/virtual/sensor/gyro/gyro_z_raw"
 #define PATH_SENSOR_GEO_TESLA   "/sys/devices/virtual/sensor/geo/tesla"
-#define PATH_NFC_DATA           "/sys/devices/virtual/network/nfc/data"
+#define PATH_SENSOR_GYRO_X_RAW      "/sys/devices/virtual/sensor/gyro/gyro_x_raw"
+#define PATH_SENSOR_GYRO_Y_RAW      "/sys/devices/virtual/sensor/gyro/gyro_y_raw"
+#define PATH_SENSOR_GYRO_Z_RAW      "/sys/devices/virtual/sensor/gyro/gyro_z_raw"
+
+#define PATH_BATTERY_CAPACITY       "sys/class/power_supply/battery/capacity"
+#define PATH_BATTERY_CHARGER_ON     "/sys/devices/platform/jack/charger_online"
+#define PATH_BATTERY_CHARGE_FULL    "/sys/class/power_supply/battery/charge_full"
+#define PATH_BATTERY_CHARGE_NOW     "/sys/class/power_supply/battery/charge_now"
+
+#define PATH_JACK_EARJACK           "/sys/devices/platform/jack/earjack_online"
+#define PATH_JACK_USB               "/sys/devices/platform/jack/usb_online"
 
 struct LXT_MESSAGE// lxt_message
 {
@@ -101,8 +110,12 @@ char* get_magnetic_value(void* , bool);
 // Location
 char* get_location_status(void* , bool);
 
-// NFC
-char* get_nfc_status(void* , bool);
+// SD Card
+int is_mounted(void);
+void* mount_sdcard(void* data);
+int umount_sdcard(const int fd);
+
+void send_guest_server(char* databuf);
 
 struct _auto_mutex
 {

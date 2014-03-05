@@ -17,7 +17,6 @@ SET(SRCS
     src/evdi.cpp
     src/emuld_proc.cpp
     src/client.cpp
-    src/get_status.cpp
     src/device.cpp
 )
 

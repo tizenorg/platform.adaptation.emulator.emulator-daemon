@@ -57,7 +57,6 @@
 #include "emuld_common.h"
 #include "evdi_protocol.h"
 #include "evdi.h"
-#include "emuld_proc.h"
 
 /* definition */
 #define MAX_CLIENT          10000
@@ -186,7 +185,6 @@ void* setting_device(void* data);
 bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
 
