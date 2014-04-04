@@ -163,7 +163,6 @@ void* mount_sdcard(void* data)
             else
                 packet->action = 5; // failed
 
-            //
             LOGDEBUG("SDpath is %s", SDpath);
 
             const int tmplen = HEADER_SIZE + packet->length;
@@ -266,7 +265,7 @@ int umount_sdcard(const int fd, bool is_evdi)
 
                 memcpy(tmp, packet, HEADER_SIZE);
                 memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
-
+                LOGDEBUG("send to evdi!!");
                 ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
                 free(tmp);
@@ -668,8 +667,11 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         case 0:                         // umount
             {
                 mount_status = umount_sdcard(sockfd, is_evdi);
-                if (mount_status == 0)
-                    send_guest_server(ijcmd->data);
+                if (mount_status == 0) {
+                    LOGDEBUG("succeeded to umount");
+                } else {
+                    LOGDEBUG("failed to umount");
+                }
             }
             break;
         case 1:                         // mount
@@ -678,8 +680,6 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                 ret = strtok(NULL, token);
                 strcpy(SDpath, ret);
                 LOGDEBUG("sdcard path is %s", SDpath);
-
-                send_guest_server(ijcmd->data);
 
                 mount_param* param = new mount_param(sockfd);
                 if (!param)
