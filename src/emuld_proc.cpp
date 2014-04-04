@@ -163,7 +163,6 @@ void* mount_sdcard(void* data)
             else
                 packet->action = 5; // failed
 
-            //
             LOGDEBUG("SDpath is %s", SDpath);
 
             const int tmplen = HEADER_SIZE + packet->length;
@@ -266,7 +265,7 @@ int umount_sdcard(const int fd, bool is_evdi)
 
                 memcpy(tmp, packet, HEADER_SIZE);
                 memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
-
+                LOGDEBUG("send to evdi!!");
                 ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
                 free(tmp);
@@ -668,8 +667,11 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
         case 0:                         // umount
             {
                 mount_status = umount_sdcard(sockfd, is_evdi);
-                if (mount_status == 0)
-                    send_guest_server(ijcmd->data);
+                if (mount_status == 0) {
+                    LOGDEBUG("succeeded to umount");
+                } else {
+                    LOGDEBUG("failed to umount");
+                }
             }
             break;
         case 1:                         // mount
@@ -678,8 +680,6 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
                 ret = strtok(NULL, token);
                 strcpy(SDpath, ret);
                 LOGDEBUG("sdcard path is %s", SDpath);
-
-                send_guest_server(ijcmd->data);
 
                 mount_param* param = new mount_param(sockfd);
                 if (!param)
@@ -796,65 +796,3 @@ bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi)
     }
     return true;
 }
-
-//sdcard event
-void send_guest_server(char* databuf)
-{
-    if (!databuf)
-    {
-        LOGERR("invalid data buf");
-        return;
-    }
-
-    char buf[32];
-    struct sockaddr_in si_other;
-    int s, slen=sizeof(si_other);
-    FILE* fd;
-    char fbuf[16];
-    int port = 3581;
-
-    fd = fopen(SDB_PORT_FILE, "r");
-    if(!fd)
-    {
-        LOGERR("fail to open %s file", SDB_PORT_FILE);
-        return;
-    }
-
-    if (fgets(fbuf, 16, fd))
-    {
-        port = atoi(fbuf) + 3;
-    }
-    else
-    {
-        LOGERR("guest port fgets failure");
-        return;
-    }
-
-    fclose(fd);
-
-    s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (s == -1)
-    {
-        LOGERR("socket error!");
-        return;
-    }
-
-    memset((char *) &si_other, 0, sizeof(si_other));
-    si_other.sin_family = AF_INET;
-    si_other.sin_port = htons(port);
-    if (inet_aton(SRV_IP, &si_other.sin_addr) == 0)
-    {
-          LOGERR("inet_aton() failed");
-    }
-
-    memset(buf, '\0', sizeof(buf));
-    snprintf(buf, sizeof(buf), "4\n%s", databuf);
-    LOGDEBUG("sendGuestServer msg: %s", buf);
-    if (sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
-    {
-        LOGERR("sendto error!");
-    }
-
-    close(s);
-}
-

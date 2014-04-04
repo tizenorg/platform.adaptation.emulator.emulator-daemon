@@ -115,8 +115,6 @@ int is_mounted(void);
 void* mount_sdcard(void* data);
 int umount_sdcard(const int fd);
 
-void send_guest_server(char* databuf);
-
 struct _auto_mutex
 {
     _auto_mutex(pthread_mutex_t* t)
