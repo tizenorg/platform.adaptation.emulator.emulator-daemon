@@ -73,7 +73,6 @@
 #define SUSPEND_UNLOCK      0
 #define SUSPEND_LOCK        1
 
-#define SDB_PORT_FILE       "/opt/home/sdb_port.txt"
 
 enum
 {
