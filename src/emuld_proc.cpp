@@ -186,12 +186,8 @@ void* mount_sdcard(void* data)
                 }
 
                 free(tmp);
-            }
-
-            //
-
-            if (ret == 0) {
-                ret = system("/usr/bin/sys_event mmcblk_add");
+            } else {
+                LOGERR("malloc() failed");
             }
 
             break;
@@ -273,7 +269,6 @@ int umount_sdcard(const int fd, bool is_evdi)
 
             memset(SDpath, '\0', sizeof(SDpath));
             sprintf(SDpath, "umounted");
-            ret = system("/usr/bin/sys_event mmcblk_remove");
 
             break;
         }
