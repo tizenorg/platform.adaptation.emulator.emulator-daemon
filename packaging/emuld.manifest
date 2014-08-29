@@ -2,6 +2,7 @@
 	<define>
 		<domain name="emuld"/>
 		<request>
+			<smack request="deviced::display" type="rw" />
 			<smack request="context-manager" type="w" />
 			<smack request="system::use_internet" type="w" />
 		</request>
