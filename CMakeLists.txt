@@ -7,36 +7,65 @@ SET(EXEC_PREFIX "\${prefix}")
 SET(INCLUDEDIR "\${prefix}/include")
 SET(VERSION 1.1)
 
-#include(FindPkgConfig)
-#pkg_check_modules(rpkgs REQUIRED ecore-x)
-#add_definitions(${rpkgs_CFLAGS} -DUSE_ONLY_ONE_MODULE)
-
 set(PROJECT_MAJOR_VERSION "1")
 set(PROJECT_MINOR_VERSION "1")
 set(PROJECT_RELEASE_VERSION "0")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
-# does not check target type (SIMUL/REAL)
-#FIND_PROGRAM(UNAME NAMES uname)
-#EXEC_PROGRAM("${UNAME}" ARGS "-m" OUTPUT_VARIABLE "ARCH")
-#IF("${ARCH}" STREQUAL "arm")
-#   ADD_DEFINITIONS("-DTARGET -DHWREV_CHECK")
-#   MESSAGE("add -DTARGET")
-#ELSE("${ARCH}" STREQUAL "arm")
-#   ADD_DEFINITIONS("-DSIMULATOR")
-#   MESSAGE("add -DSIMULATOR")
-#ENDIF("${ARCH}" STREQUAL "arm")
+IF("$ENV{CFLAGS}" MATCHES "-DMOBILE")
+    OPTION(USE_D_MOBILE "Use Mobile Def" ON)
+ENDIF()
 
-ADD_DEFINITIONS("-DTARGET -DHWREV_CHECK")
+IF("$ENV{CFLAGS}" MATCHES "-DWEARABLE")
+    OPTION(USE_D_WEARABLE "Use Wearable Def" ON)
+ENDIF()
 
-#add_definitions(-D_ESTIMATE_PERFORMANCE)
-#add_definitions(-D_DEFAULT_FONT_NAME="Vera")
-add_definitions(-Werror -Wall -O3 -omit-frame-pointer)
-#add_definitions(-Wall -g -D_DEBUG)
-add_definitions(-Iinclude)
-ADD_EXECUTABLE(${PROJECT_NAME} src/emuld.cpp src/evdi.cpp src/emuld_proc.cpp src/client.cpp src/get_status.cpp src/log.cpp)
+SET(SRCS
+    src/emuld.cpp
+    src/evdi.cpp
+    src/client.cpp
+    src/common.cpp
+)
 
-target_link_libraries(${PROJECT_NAME} ${rpkgs_LDFLAGS} ${GLES_LDFLAGS})
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} "-lpthread -lvconf -ldeviced" )
+IF(USE_D_MOBILE)
+    SET(SRCS ${SRCS}
+        src/mobile.cpp
+        src/mobile_dev.cpp
+        src/common_dev.cpp
+    )
+ENDIF(USE_D_MOBILE)
 
-install(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)
+IF(USE_D_WEARABLE)
+    SET(SRCS ${SRCS}
+        src/wearable.cpp
+        src/wearable_dev.cpp
+        src/common_dev.cpp
+    )
+ENDIF(USE_D_WEARABLE)
+
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
+
+INCLUDE(FindPkgConfig)
+
+SET(PKG_MODULE
+    vconf
+    deviced
+    dlog
+)
+
+pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})
+
+IF(USE_D_MOBILE)
+    ADD_DEFINITIONS("-DMOBILE")
+ELSEIF(USE_D_WEARABLE)
+    ADD_DEFINITIONS("-DWEARABLE")
+ENDIF()
+
+ADD_DEFINITIONS("-DENABLE_DLOG_OUT")
+ADD_DEFINITIONS(-Wall -O3 -omit-frame-pointer)
+
+ADD_EXECUTABLE(${PROJECT_NAME} ${SRCS})
+
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} -lpthread)
+
+INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)

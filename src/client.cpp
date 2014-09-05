@@ -9,7 +9,7 @@
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,18 +21,18 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
  */
 
+#include <arpa/inet.h>
+#include <unistd.h>
 
 #include "emuld.h"
-#include "emuld_common.h"
 
 static pthread_mutex_t mutex_climap = PTHREAD_MUTEX_INITIALIZER;
-
 
 CliMap g_climap;
 
@@ -51,7 +51,7 @@ void clipool_add(int fd, unsigned short port, const int fdtype)
     if (!g_climap.insert(CliMap::value_type(fd, cli)).second)
         return;
 
-    LOG("clipool_add fd = %d, port = %d, type = %d \n", fd, port, fdtype);
+    LOGINFO("clipool_add fd = %d, port = %d, type = %d", fd, port, fdtype);
 }
 
 
@@ -79,7 +79,7 @@ void clipool_delete(int fd)
         }
     }
 
-    LOG("clipool_delete fd = %d\n", fd);
+    LOGINFO("clipool_delete fd = %d", fd);
 }
 
 
@@ -130,10 +130,10 @@ bool send_to_all_ij(char* data, const int len)
         result = (sent == -1) ? false : true;
         if (sent == -1)
         {
-            perror("failed to send to ij\n");
+            LOGERR("failed to send to ij");
         }
 
-        LOG("send_len: %d, err= %d\n", sent, errno);
+        LOGDEBUG("send_len: %d, err= %d", sent, errno);
     }
     return result;
 }

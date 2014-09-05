@@ -27,69 +27,27 @@
  *
  */
 
-#include "emuld_common.h"
+#include <errno.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
 #include "emuld.h"
 #include "synbuf.h"
-#include "deviced/dd-display.h"
 
-#define PMAPI_RETRY_COUNT       3
-#define MAX_CONNECT_TRY_COUNT   (60 * 3)
-#define SRV_IP "10.0.2.2"
+#include <queue>
 
 /* global definition */
-#ifdef CONFIG_VMODEM
-unsigned short vmodem_port = VMODEM_PORT;
-static int g_vm_connect_status; /* connection status between emuld and vmodem  */
-static pthread_mutex_t mutex_vmconnect = PTHREAD_MUTEX_INITIALIZER;
-#endif
-
-unsigned short pedometer_port = PEDOMETER_PORT;
-static int g_pedometer_connect_status;/* connection status between emuld and pedometer daemon  */
-static pthread_mutex_t mutex_pedometerconnect = PTHREAD_MUTEX_INITIALIZER;
-
-unsigned short sensord_port = SENSORD_PORT;
-
-/* global server port number */
-int g_svr_port;
-
-
-pthread_t tid[MAX_CLIENT + 1];
-
-/* udp socket */
-struct sockaddr_in si_sensord_other;
-
-int g_fd[fdtype_max];
-
 typedef std::queue<msg_info*> __msg_queue;
-
 __msg_queue g_msgqueue;
 
 int g_epoll_fd;
-
+int g_fd[fdtype_max];
+pthread_t tid[MAX_CLIENT + 1];
 struct epoll_event g_events[MAX_EVENTS];
-
 bool exit_flag = false;
 
-/*----------------------------------------------------------------*/
-/* FUNCTION PART                                                  */
-/* ---------------------------------------------------------------*/
-
-void systemcall(const char* param)
-{
-    if (!param)
-        return;
-
-    if (system(param) == -1)
-        LOG("system call failure(command = %s)\n", param);
-}
-
-
-/*---------------------------------------------------------------
-function : init_data0
-io: none
-desc: initialize global client structure values
-----------------------------------------------------------------*/
-void init_data0(void)
+static void init_fd(void)
 {
     register int i;
 
@@ -99,50 +57,24 @@ void init_data0(void)
     }
 }
 
-#ifdef CONFIG_VMODEM
-bool is_vm_connected(void)
+bool epoll_ctl_add(const int fd)
 {
-    _auto_mutex _(&mutex_vmconnect);
+    struct epoll_event events;
 
-    if (g_vm_connect_status != 1)
+    events.events = EPOLLIN;    // check In event
+    events.data.fd = fd;
+
+    if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
+    {
+        LOGERR("Epoll control fails.");
         return false;
+    }
 
+    LOGINFO("[START] epoll events add fd success for server");
     return true;
 }
 
-void set_vm_connect_status(const int v)
-{
-    _auto_mutex _(&mutex_vmconnect);
-
-    g_vm_connect_status = v;
-}
-#endif
-
-bool is_pedometer_connected(void)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    if (g_pedometer_connect_status != 1)
-        return false;
-
-    return true;
-}
-
-void set_pedometer_connect_status(const int v)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    g_pedometer_connect_status = v;
-}
-
-/*-------------------------------------------------------------
-function: init_server0
-io: input : integer - server port (must be positive)
-output: none
-desc : tcp/ip listening socket setting with input variable
-----------------------------------------------------------------*/
-
-bool init_server0(int svr_port, int* ret_fd)
+static bool init_server(int svr_port, int* ret_fd)
 {
     struct sockaddr_in serv_addr;
     int fd;
@@ -152,7 +84,7 @@ bool init_server0(int svr_port, int* ret_fd)
     /* Open TCP Socket */
     if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
-        LOG("Server Start Fails. : Can't open stream socket \n");
+        LOGERR("Server Start Fails. : Can't open stream socket");
         return false;
     }
 
@@ -167,32 +99,30 @@ bool init_server0(int svr_port, int* ret_fd)
     int nSocketOpt = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &nSocketOpt, sizeof(nSocketOpt)) < 0)
     {
-        LOG("Server Start Fails. : Can't set reuse address\n");
+        LOGERR("Server Start Fails. : Can't set reuse address");
         goto fail;
     }
 
     /* Bind Socket */
     if (bind(fd,(struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
-        LOG("Server Start Fails. : Can't bind local address\n");
+        LOGERR("Server Start Fails. : Can't bind local address");
         goto fail;
     }
 
     /* Listening */
     if (listen(fd, 15) < 0) /* connection queue is 15. */
     {
-        LOG("Server Start Fails. : listen failure\n");
+        LOGERR("Server Start Fails. : listen failure");
         goto fail;
     }
-    LOG("[START] Now Server listening on port %d, EMdsockfd: %d"
+
+	LOGINFO("[START] Now Server listening on port %d, EMdsockfd: %d"
             ,svr_port, fd);
- 
-    /* notify to qemu that emuld is ready */
-    emuld_ready();
 
     if (!epoll_ctl_add(fd))
     {
-        LOG("Epoll control fails.\n");
+        LOGERR("Epoll control fails.");
         goto fail;
     }
 
@@ -203,263 +133,19 @@ fail:
     close(fd);
     return false;
 }
-/*------------------------------- end of function init_server0 */
 
-void print_binary(const char* data, const int len)
-{
-    int i;
-    printf("[DATA: ");
-    for(i = 0; i < len; i++) {
-        if(i == len - 1) {
-            printf("%02x]\n", data[i]);
-        } else {
-            printf("%02x,", data[i]);
-        }
-    }
-}
-
-void emuld_ready()
-{
-    char buf[16];
-
-    struct sockaddr_in si_other;
-    int s, slen=sizeof(si_other);
-    int port;
-    char *ptr;
-    char *temp_sdbport;
-    temp_sdbport = getenv("sdb_port");
-    if(temp_sdbport == NULL) {
-        LOG("failed to get env variable from sdb_port\n");
-        return;
-    }
-
-    port = strtol(temp_sdbport, &ptr, 10);
-    port = port + 3;
-
-    LOG("guest_server port: %d\n", port);
-
-    if ((s=socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP))==-1){
-        LOG("socket error!\n");
-        return;
-    }
-
-    memset((char *) &si_other, 0, sizeof(si_other));
-    si_other.sin_family = AF_INET;
-    si_other.sin_port = htons(port);
-    if (inet_aton(SRV_IP, &si_other.sin_addr)==0) {
-        LOG("inet_aton() failed\n");
-    }
-
-    memset(buf, '\0', sizeof(buf));
-
-    sprintf(buf, "5\n");
-
-    LOG("send message to guest server\n");
-
-    while(sendto(s, buf, sizeof(buf), 0, (struct sockaddr*)&si_other, slen) == -1)
-    {
-        LOG("sendto error! retry sendto\n");
-        usleep(1000);
-    }
-    LOG("emuld is ready.\n");
-
-    close(s);
-
-}
-
-#ifdef CONFIG_VMODEM
-void* init_vm_connect(void* data)
-{
-    struct sockaddr_in vm_addr;
-    int ret = -1;
-
-    set_vm_connect_status(0);
-
-    LOG("init_vm_connect start\n");
-
-    pthread_detach(pthread_self());
-    /* Open TCP Socket */
-    if ((g_fd[fdtype_vmodem] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        LOG("Server Start Fails. : Can't open stream socket \n");
-        exit(0);
-    }
-
-    /* Address Setting */
-    memset( &vm_addr , 0 , sizeof(vm_addr));
-
-    vm_addr.sin_family = AF_INET;
-    vm_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    vm_addr.sin_port = htons(vmodem_port);
-
-    while (ret < 0 && !exit_flag)
-    {
-        ret = connect(g_fd[fdtype_vmodem], (struct sockaddr *)&vm_addr, sizeof(vm_addr));
-
-        LOG("vm_sockfd: %d, connect ret: %d\n", g_fd[fdtype_vmodem], ret);
-
-        if(ret < 0) {
-            LOG("connection failed to vmodem! try \n");
-            sleep(1);
-        }
-    }
-
-    epoll_ctl_add(g_fd[fdtype_vmodem]);
-
-    set_vm_connect_status(1);
-
-    pthread_exit((void *) 0);
-}
-#endif
-
-void* init_pedometer_connect(void* data)
-{
-    struct sockaddr_in pedometer_addr;
-    int ret = -1;
-
-    set_pedometer_connect_status(0);
-
-    LOG("init_pedometer_connect start\n");
-
-    pthread_detach(pthread_self());
-    /* Open TCP Socket */
-    if ((g_fd[fdtype_pedometer] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        LOG("Server Start Fails. : Can't open stream socket \n");
-        exit(0);
-    }
-
-    /* Address Setting */
-    memset( &pedometer_addr , 0 , sizeof(pedometer_addr)) ;
-
-    pedometer_addr.sin_family = AF_INET;
-    pedometer_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    pedometer_addr.sin_port = htons(pedometer_port);
-
-    while (ret < 0 && !exit_flag)
-    {
-        ret = connect(g_fd[fdtype_pedometer], (struct sockaddr *)&pedometer_addr, sizeof(pedometer_addr));
-
-        LOG("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
-
-        if(ret < 0) {
-            LOG("connection failed to pedometer! try \n");
-            sleep(1);
-        }
-    }
-
-    epoll_ctl_add(g_fd[fdtype_pedometer]);
-
-    set_pedometer_connect_status(1);
-
-    pthread_exit((void *) 0);
-}
-
-bool epoll_ctl_add(const int fd)
-{
-    struct epoll_event events;
-
-    events.events = EPOLLIN;    // check In event
-    events.data.fd = fd;
-
-    if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
-    {
-        LOG("Epoll control fails.\n");
-        return false;
-    }
-
-    LOG("[START] epoll events set success for server\n");
-    return true;
-}
-
-bool epoll_init(void)
+static bool epoll_init(void)
 {
     g_epoll_fd = epoll_create(MAX_EVENTS); // create event pool
     if(g_epoll_fd < 0)
     {
-        LOG("Epoll create Fails.\n");
+        LOGERR("Epoll create Fails.");
         return false;
     }
 
-    LOG("[START] epoll creation success\n");
+    LOGINFO("[START] epoll creation success");
     return true;
 }
-
-
-
-/*------------------------------- end of function epoll_init */
-
-
-int parse_val(char *buff, unsigned char data, char *parsbuf)
-{
-    int count=0;
-    while(1)
-    {
-        if(count > 40)
-            return -1;
-        if(buff[count] == data)
-        {
-            count++;
-            strncpy(parsbuf, buff, count);
-            return count;
-        }
-        count++;
-    }
-
-    return 0;
-}
-
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-
-void udp_init(void)
-{
-    char emul_ip[HOST_NAME_MAX+1];
-    struct addrinfo *res;
-    struct addrinfo hints;
-    int rc;
-
-    LOG("start");
-
-    memset(emul_ip, 0, sizeof(emul_ip));
-    if (gethostname(emul_ip, sizeof(emul_ip)) < 0)
-    {
-        LOG("gethostname(): %s", strerror(errno));
-        assert(0);
-    }
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = IPPROTO_UDP;
-
-    if ((rc=getaddrinfo(emul_ip, STR(SENSORD_PORT), &hints, &res)) != 0)
-    {
-        if (rc == EAI_SYSTEM)
-            LOG("getaddrinfo(sensord): %s", strerror(errno));
-        else
-            LOG("getaddrinfo(sensord): %s", gai_strerror(rc));
-        assert(0);
-    }
-
-    if ((g_fd[fdtype_sensor] = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
-    {
-        LOG("socket error!\n");
-    }
-
-    if (res->ai_addrlen > sizeof(si_sensord_other))
-    {
-        LOG("sockaddr structure too big");
-        /* XXX: if you `return' remember to clean up */
-        assert(0);
-    }
-    memset((char *) &si_sensord_other, 0, sizeof(si_sensord_other));
-    memcpy((char *) &si_sensord_other, res->ai_addr, res->ai_addrlen);
-    freeaddrinfo(res);
-}
-
-#undef STR_HELPER
-#undef STR
 
 int recv_data(int event_fd, char** r_databuf, int size)
 {
@@ -508,7 +194,7 @@ int recv_data(int event_fd, char** r_databuf, int size)
     return recvd_size;
 }
 
-int read_header(int fd, LXT_MESSAGE* packet)
+static int read_header(int fd, LXT_MESSAGE* packet)
 {
     char* readbuf = NULL;
     int readed = recv_data(fd, &readbuf, HEADER_SIZE);
@@ -530,8 +216,8 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd)
     int readed;
     readed = read_header(fd, &ijcmd->msg);
 
-    LOG("action: %d", ijcmd->msg.action);
-    LOG("length: %d", ijcmd->msg.length);
+    LOGDEBUG("action: %d", ijcmd->msg.action);
+    LOGDEBUG("length: %d", ijcmd->msg.length);
 
     if (readed <= 0)
         return false;
@@ -562,255 +248,11 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd)
     return true;
 }
 
-bool read_id(const int fd, ijcommand* ijcmd)
-{
-    char* readbuf = NULL;
-    int readed = recv_data(fd, &readbuf, ID_SIZE);
-
-    LOG("read_id : receive size: %d", readed);
-
-    if (readed <= 0)
-    {
-        free(readbuf);
-        readbuf = NULL;
-        return false;
-    }
-
-    LOG("identifier: %s", readbuf);
-
-    memset(ijcmd->cmd, '\0', sizeof(ijcmd->cmd));
-    int parselen = parse_val(readbuf, 0x0a, ijcmd->cmd);
-
-    LOG("parse_len: %d, buf = %s, fd=%d", parselen, ijcmd->cmd, fd);
-
-    if (readbuf)
-    {
-        free(readbuf);
-        readbuf = NULL;
-    }
-
-    return true;
-}
-
-
-#ifdef CONFIG_VMODEM
-void recv_from_vmodem(int fd)
-{
-    printf("recv_from_vmodem\n");
-
-    ijcommand ijcmd;
-    if (!read_ijcmd(fd, &ijcmd))
-    {
-        LOG("fail to read ijcmd\n");
-
-        set_vm_connect_status(0);
-
-        close(fd);
-
-        if (pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
-        {
-            LOG("pthread create fail!");
-        }
-        return;
-    }
-
-    LOG("vmodem data length: %d", ijcmd.msg.length);
-    const int tmplen = HEADER_SIZE + ijcmd.msg.length;
-    char* tmp = (char*) malloc(tmplen);
-
-    if (tmp)
-    {
-        memcpy(tmp, &ijcmd.msg, HEADER_SIZE);
-        if (ijcmd.msg.length > 0)
-            memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
-
-        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_TELEPHONY, (const char*) tmp, tmplen)) {
-            LOG("msg_send_to_evdi: failed\n");
-        }
-
-        free(tmp);
-    }
-
-    // send header to ij
-    if (is_ij_exist())
-    {
-        send_to_all_ij((char*) &ijcmd.msg, HEADER_SIZE);
-
-        if (ijcmd.msg.length > 0)
-        {
-            send_to_all_ij((char*) ijcmd.data, ijcmd.msg.length);
-        }
-    }
-}
-#endif
-
-void recv_from_pedometer(int fd)
-{
-    printf("recv_from_pedometer\n");
-
-    ijcommand ijcmd;
-    if (!read_ijcmd(fd, &ijcmd))
-    {
-        LOG("fail to read ijcmd\n");
-
-        set_pedometer_connect_status(0);
-
-        close(fd);
-
-        if (pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
-        {
-            LOG("pthread create fail!");
-        }
-        return;
-    }
-
-    LOG("pedometer data length: %d", ijcmd.msg.length);
-    const int tmplen = HEADER_SIZE + ijcmd.msg.length;
-    char* tmp = (char*) malloc(tmplen);
-
-    if (tmp)
-    {
-        memcpy(tmp, &ijcmd.msg, HEADER_SIZE);
-        if (ijcmd.msg.length > 0)
-            memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
-
-        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_PEDOMETER, (const char*) tmp, tmplen)) {
-            LOG("msg_send_to_evdi: failed\n");
-        }
-
-        free(tmp);
-    }
-}
-
-void recv_from_ij(int fd)
-{
-    printf("recv_from_ij\n");
-
-    ijcommand ijcmd;
-
-    if (!read_id(fd, &ijcmd))
-    {
-        close_cli(fd);
-        return;
-    }
-
-    // TODO : if recv 0 then close client
-
-    if (!read_ijcmd(fd, &ijcmd))
-    {
-        LOG("fail to read ijcmd\n");
-        return;
-    }
-
-    if (strncmp(ijcmd.cmd, "pedometer", 9) == 0)
-    {
-        msgproc_pedometer(fd, &ijcmd, false);
-    }
-#ifdef CONFIG_VMODEM
-    else if (strncmp(ijcmd.cmd, "telephony", 9) == 0)
-    {
-        msgproc_telephony(fd, &ijcmd, false);
-    }
-#endif
-    else if (strncmp(ijcmd.cmd, "sensor", 6) == 0)
-    {
-        msgproc_sensor(fd, &ijcmd, false);
-    }
-    else if (strncmp(ijcmd.cmd, "location", 8) == 0)
-    {
-        msgproc_location(fd, &ijcmd, false);
-    }
-    else if (strncmp(ijcmd.cmd, "nfc", 3) == 0)
-    {
-        msgproc_nfc(fd, &ijcmd, false);
-    }
-    else if (strncmp(ijcmd.cmd, "system", 6) == 0)
-    {
-        msgproc_system(fd, &ijcmd, false);
-    }
-    else if (strncmp(ijcmd.cmd, "sdcard", 6) == 0)
-    {
-        msgproc_sdcard(fd, &ijcmd, false);
-    }
-    else
-    {
-        LOG("Unknown packet: %s", ijcmd.cmd);
-        close_cli (fd);
-    }
-}
-
-bool accept_proc(const int server_fd)
-{
-    struct sockaddr_in cli_addr;
-    int cli_sockfd;
-    int cli_len = sizeof(cli_addr);
-
-    cli_sockfd = accept(server_fd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
-    if(cli_sockfd < 0)
-    {
-        LOG("accept error\n");
-        return false;
-    }
-    else
-    {
-        LOG("[Accpet] New client connected. fd:%d, port:%d"
-                ,cli_sockfd, cli_addr.sin_port);
-
-        clipool_add(cli_sockfd, cli_addr.sin_port, fdtype_ij);
-        epoll_ctl_add(cli_sockfd);
-    }
-    return true;
-}
-
-
-static synbuf g_synbuf;
-
-void process_evdi_command(ijcommand* ijcmd)
-{
-    int fd = -1;
-
-    if (strncmp(ijcmd->cmd, "pedometer", 9) == 0)
-    {
-        msgproc_pedometer(fd, ijcmd, true);
-    }
-#ifdef CONFIG_VMODEM
-    else if (strncmp(ijcmd->cmd, "telephony", 9) == 0)
-    {
-        msgproc_telephony(fd, ijcmd, true);
-    }
-#endif
-    else if (strncmp(ijcmd->cmd, "sensor", 6) == 0)
-    {
-        msgproc_sensor(fd, ijcmd, true);
-    }
-    else if (strncmp(ijcmd->cmd, "location", 8) == 0)
-    {
-        msgproc_location(fd, ijcmd, true);
-    }
-    else if (strncmp(ijcmd->cmd, "nfc", 3) == 0)
-    {
-        msgproc_nfc(fd, ijcmd, true);
-    }
-    else if (strncmp(ijcmd->cmd, "system", 6) == 0)
-    {
-        msgproc_system(fd, ijcmd, true);
-    }
-    else if (strncmp(ijcmd->cmd, "sdcard", 6) == 0)
-    {
-        msgproc_sdcard(fd, ijcmd, true);
-    }
-    else
-    {
-        LOG("Unknown packet: %s", ijcmd->cmd);
-    }
-}
-
-//static long recv_count = 0;
-
 void recv_from_evdi(evdi_fd fd)
 {
-    printf("recv_from_evdi\n");
+    LOGDEBUG("recv_from_evdi");
     int readed;
+	synbuf g_synbuf;
 
     struct msg_info _msg;
     int to_read = sizeof(struct msg_info);
@@ -825,8 +267,7 @@ void recv_from_evdi(evdi_fd fd)
         {
             if (errno != EAGAIN)
             {
-                perror ("recv_from_evdi : EAGAIN\n");
-                LOG("EAGAIN\n");
+                LOGERR("EAGAIN");
                 return;
             }
         }
@@ -836,18 +277,16 @@ void recv_from_evdi(evdi_fd fd)
         }
     }
 
-    //LOG("RECV COUNT = %d\n", ++recv_count);
-    LOG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s\n",
+    LOGDEBUG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
             readed, _msg.count, _msg.index, _msg.use, _msg.buf);
 
     g_synbuf.reset_buf();
     g_synbuf.write(_msg.buf, _msg.use);
 
-
     ijcommand ijcmd;
     readed = g_synbuf.read(ijcmd.cmd, ID_SIZE);
 
-    LOG("ij id : %s\n", ijcmd.cmd);
+    LOGDEBUG("ij id : %s", ijcmd.cmd);
 
     // TODO : check
     if (readed < ID_SIZE)
@@ -858,141 +297,76 @@ void recv_from_evdi(evdi_fd fd)
     if (readed < HEADER_SIZE)
         return;
 
-    int act = ijcmd.msg.action;
-    int grp = ijcmd.msg.group;
-    int len = ijcmd.msg.length;
-
-
-    LOG("HEADER : action = %d, group = %d, length = %d\n", act, grp, len);
+    LOGDEBUG("HEADER : action = %d, group = %d, length = %d",
+			ijcmd.msg.action, ijcmd.msg.group, ijcmd.msg.length);
 
     if (ijcmd.msg.length > 0)
     {
         ijcmd.data = (char*) malloc(ijcmd.msg.length);
         if (!ijcmd.data)
         {
-            LOG("failed to allocate memory\n");
+            LOGERR("failed to allocate memory");
             return;
         }
         readed = g_synbuf.read(ijcmd.data, ijcmd.msg.length);
 
+        LOGDEBUG("DATA : %s", ijcmd.data);
+
         if (readed < ijcmd.msg.length)
         {
-            LOG("received data is insufficient");
-            //return;
+            LOGERR("received data is insufficient");
         }
     }
 
     process_evdi_command(&ijcmd);
 }
 
-bool server_process(void)
+bool accept_proc(const int server_fd)
 {
-    int i,nfds;
-    int fd_tmp;
+    struct sockaddr_in cli_addr;
+    int cli_sockfd;
+    int cli_len = sizeof(cli_addr);
 
-    nfds = epoll_wait(g_epoll_fd, g_events, MAX_EVENTS, 100);
-
-    if (nfds == -1 && errno != EAGAIN && errno != EINTR)
+    cli_sockfd = accept(server_fd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
+    if(cli_sockfd < 0)
     {
-        LOG("epoll wait(%d)\n", errno);
-        return true;
+        LOGERR("accept error");
+        return false;
     }
-
-    for( i = 0 ; i < nfds ; i++ )
+    else
     {
-        fd_tmp = g_events[i].data.fd;
-        if (fd_tmp == g_fd[fdtype_server])
-        {
-            accept_proc(fd_tmp);
-        }
-        else if (fd_tmp == g_fd[fdtype_pedometer])
-        {
-            recv_from_pedometer(fd_tmp);
-        }
-        else if (fd_tmp == g_fd[fdtype_device])
-        {
-            recv_from_evdi(fd_tmp);
-        }
-#ifdef CONFIG_VMODEM
-        else if(fd_tmp == g_fd[fdtype_vmodem])
-        {
-            recv_from_vmodem(fd_tmp);
-        }
-#endif
-        else
-        {
-            recv_from_ij(fd_tmp);
-        }
+        LOGINFO("[Accept] New client connected. fd:%d, port:%d"
+                ,cli_sockfd, cli_addr.sin_port);
+
+        clipool_add(cli_sockfd, cli_addr.sin_port, fdtype_ij);
+        epoll_ctl_add(cli_sockfd);
     }
-
-    return false;
-}
-/*------------------------------- end of function server_process */
-
-void end_server(int sig)
-{
-    close(g_fd[fdtype_server]); /* close server socket */
-    close(g_fd[fdtype_sensor]);
-    LOG("[SHUTDOWN] Server closed by signal %d",sig);
-
-    exit(0);
-}
-
-void set_lock_state() {
-    int i = 0;
-    int ret = 0;
-    // Now we blocking to enter "SLEEP".
-    while(i < PMAPI_RETRY_COUNT ) {
-        ret = display_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
-        LOG("display_lock_state() return: %d", ret);
-        if(ret == 0)
-        {
-            break;
-        }
-        ++i;
-        sleep(10);
-    }
-    if (i == PMAPI_RETRY_COUNT) {
-        LOG("Emulator Daemon: Failed to call display_lock_state().\n");
-    }
+    return true;
 }
 
 int main( int argc , char *argv[])
 {
-#ifdef CONFIG_VMODEM
-    int vm_state;
-#endif
-    int pedometer_state;
+	int g_svr_port = DEFAULT_PORT;
 
-    //if(log_print == 1)
-    {
-        // for emuld log file
-        systemcall("rm /var/log/emuld.log");
-        systemcall("touch /var/log/emuld.log");
-    }
+    LOGINFO("emuld start");
 
-    LOG("start");
-    /* entry , argument check and process */
-    if(argc < 3){
-        g_svr_port = DEFAULT_PORT;
-    }else {
-        if(strcmp("-port", argv[1]) ==  0 ) {
-            g_svr_port = atoi(argv[2]);
-            if(g_svr_port < 1024) {
-                LOG("[STOP] port number invalid : %d\n",g_svr_port);
-                exit(0);
-            }
+	/* entry , argument check and process */
+    if(argc >= 3 && strcmp("-port", argv[1]) ==  0 ) {
+        g_svr_port = atoi(argv[2]);
+        if(g_svr_port < 1024) {
+            LOGERR("[STOP] port number invalid : %d",g_svr_port);
+            exit(0);
         }
     }
 
-    init_data0();
+    init_fd();
 
     if (!epoll_init())
     {
         exit(0);
     }
 
-    if (!init_server0(g_svr_port, &g_fd[fdtype_server]))
+    if (!init_server(g_svr_port, &g_fd[fdtype_server]))
     {
         close(g_epoll_fd);
         exit(0);
@@ -1004,66 +378,25 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
-    LOG("[START] epoll events set success for server");
-#ifdef CONFIG_VMODEM
-    set_vm_connect_status(0);
+    LOGINFO("[START] epoll events set success for server");
 
-    if(pthread_create(&tid[0], NULL, init_vm_connect, NULL) != 0)
+	init_profile();
+
+    send_default_suspend_req();
+
+    while(!exit_flag)
     {
-        LOG("pthread create fail!");
-        close(g_epoll_fd);
-        exit(0);
-    }
-#endif
-    if(pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
-    {
-        LOG("pthread create fail!");
-        close(g_epoll_fd);
-        exit(0);
-    }
-    udp_init();
-
-    set_lock_state();
-
-    bool is_exit = false;
-
-    while(!is_exit)
-    {
-        is_exit = server_process();
+        exit_flag = server_process();
     }
 
-    exit_flag = true;
-
-#ifdef CONFIG_VMODEM
-    if (!is_vm_connected())
-    {
-        int status;
-        pthread_join(tid[0], (void **)&status);
-        LOG("vmodem thread end %d\n", status);
-    }
-
-    vm_state = pthread_mutex_destroy(&mutex_vmconnect);
-    if (vm_state != 0)
-    {
-        LOG("mutex_vmconnect is failed to destroy.");
-    }
-#endif
-    if (!is_pedometer_connected())
-    {
-        int status;
-        pthread_join(tid[3], (void **)&status);
-        LOG("pedometer thread end %d\n", status);
-    }
-
-    pedometer_state = pthread_mutex_destroy(&mutex_pedometerconnect);
-    if (pedometer_state != 0)
-    {
-        LOG("mutex_pedometerconnect is failed to destroy.");
-    }
+	exit_profile();
 
     stop_listen();
 
-    LOG("emuld exit\n");
+    if (g_fd[fdtype_server])
+        close(g_fd[fdtype_server]);
+
+    LOGINFO("emuld exit");
 
     return 0;
 }

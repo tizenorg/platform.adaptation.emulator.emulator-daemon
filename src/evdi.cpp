@@ -27,7 +27,9 @@
  *
  */
 
-#include "evdi.h"
+#include <unistd.h>
+#include <fcntl.h>
+
 #include "emuld.h"
 
 #define DEVICE_NODE_PATH    "/dev/evdi0"
@@ -39,10 +41,10 @@ evdi_fd open_device(void)
     evdi_fd fd;
 
     fd = open(DEVICE_NODE_PATH, O_RDWR); //O_CREAT|O_WRONLY|O_TRUNC.
-    LOG("evdi open fd is %d", fd);
+    LOGDEBUG("evdi open fd is %d", fd);
 
     if (fd <= 0) {
-        LOG("open %s fail", DEVICE_NODE_PATH);
+        LOGERR("open %s fail", DEVICE_NODE_PATH);
         return fd;
     }
 
@@ -55,13 +57,13 @@ bool set_nonblocking(evdi_fd fd)
     opts= fcntl(fd, F_GETFL);
     if (opts < 0)
     {
-        perror("fcntl failed\n");
+        LOGERR("F_GETFL fcntl failed");
         return false;
     }
     opts = opts | O_NONBLOCK;
     if (fcntl(fd, F_SETFL, opts) < 0)
     {
-        perror("fcntl failed\n");
+        LOGERR("NONBLOCK fcntl failed");
         return false;
     }
     return true;
@@ -85,7 +87,7 @@ bool init_device(evdi_fd* ret_fd)
 
     if (!epoll_ctl_add(fd))
     {
-        LOG("Epoll control fails.\n");
+        LOGERR("Epoll control fails.");
         close(fd);
         return false;
     }
@@ -97,12 +99,12 @@ bool init_device(evdi_fd* ret_fd)
 
 bool send_to_evdi(evdi_fd fd, const char* data, const int len)
 {
-    LOG("send to evdi client, len = %d\n", len);
+    LOGDEBUG("send to evdi client, len = %d", len);
     int ret;
 
     ret = write(fd, data, len);
 
-    LOG("written bytes = %d\n", ret);
+    LOGDEBUG("written bytes = %d", ret);
 
     if (ret == -1)
         return false;
@@ -113,7 +115,7 @@ bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int
 {
     _auto_mutex _(&mutex_evdi);
 
-    LOG("ijmsg_send_to_evdi\n");
+    LOGDEBUG("ijmsg_send_to_evdi");
 
     if (fd == -1)
         return false;
@@ -124,7 +126,7 @@ bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int
 
     // TODO: need to make fragmented transmission
     if (len + ID_SIZE > __MAX_BUF_SIZE) {
-        LOG("evdi message len is too large\n");
+        LOGERR("evdi message len is too large");
         return false;
     }
 
@@ -139,7 +141,7 @@ bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int
     _msg.index = 0;
     _msg.cclisn = 0;
 
-    LOG("ijmsg_send_to_evdi - %s", _msg.buf);
+    LOGDEBUG("ijmsg_send_to_evdi - %s", _msg.buf);
 
     if (!send_to_evdi(fd, (char*) &_msg, sizeof(_msg)))
         return false;
@@ -154,7 +156,7 @@ bool msg_send_to_evdi(evdi_fd fd, const char* data, const int len)
     // TODO: need to make fragmented transmission
     if (len > __MAX_BUF_SIZE)
     {
-        LOG("evdi message len is too large\n");
+        LOGERR("evdi message len is too large");
         return false;
     }
 
@@ -168,7 +170,7 @@ bool msg_send_to_evdi(evdi_fd fd, const char* data, const int len)
     _msg.index = 0;
     _msg.cclisn = 0;
 
-    LOG("msg_send_to_evdi - %s", _msg.buf);
+    LOGDEBUG("msg_send_to_evdi - %s", _msg.buf);
 
     if (!send_to_evdi(fd, (char*)&_msg, sizeof(_msg)))
         return false;

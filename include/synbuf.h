@@ -32,7 +32,7 @@
 #define SYNBUF_H_
 
 #include <stdbool.h>
-
+#include <stdlib.h>
 
 class synbuf
 {

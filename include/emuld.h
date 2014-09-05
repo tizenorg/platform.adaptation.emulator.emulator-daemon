@@ -28,125 +28,52 @@
  */
 
 
-#ifndef __emuld_h__
-#define __emuld_h__
+#ifndef __EMULD_H__
+#define __EMULD_H__
 
-/* header files */
-#include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/epoll.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/reboot.h>
-#include <stdarg.h>
-#include <sys/time.h>
 #include <pthread.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <assert.h>
-#include <errno.h>
-#include <sys/mount.h>
-#include <stdbool.h>
-#include <fcntl.h>
-#include <queue>
+#include <sys/epoll.h>
+
 #include <map>
 
-#include "log.h"
-#include "emuld_common.h"
-#include "evdi_protocol.h"
 #include "evdi.h"
-#include "emuld_proc.h"
 
-/* definition */
-//use when use telephony
-//#define CONFIG_VMODEM
-
-#define MAX_CLIENT          10000
-#define MAX_EVENTS          10000
-#define MAX_GETCNT          10
-#define SDBD_PORT           26101
-#define DEFAULT_PORT        3577
-#define VMODEM_PORT         3578
-#define PEDOMETER_PORT      3600
-#define GPSD_PORT           3579
-#define SENSORD_PORT        3580
-#define SRV_IP              "10.0.2.2"
-#define ID_SIZE             10
-#define HEADER_SIZE         4
-#define EMD_DEBUG
-#define POWEROFF_DURATION   2
-
-#define SDB_PORT_FILE       "/opt/home/sdb_port.txt"
+#define FDTYPE_MAX			6
 
 enum
 {
     fdtype_server     = 0,
     fdtype_device     = 1,
-    fdtype_vmodem     = 2,
-    fdtype_pedometer  = 3,
     fdtype_ij         = 4,
-    fdtype_sensor     = 5, //udp
-    fdtype_max        = 6
+    fdtype_max        = FDTYPE_MAX
 };
 
+/* definition */
+#define MAX_CLIENT          10000
+#define MAX_EVENTS          10000
+#define MAX_GETCNT          10
+#define DEFAULT_PORT        3577
+#define ID_SIZE             10
+#define HEADER_SIZE         4
+
 extern pthread_t tid[MAX_CLIENT + 1];
-extern struct sockaddr_in si_sensord_other;
 extern int g_fd[fdtype_max];
+extern bool exit_flag;
+extern int g_epoll_fd;
+extern struct epoll_event g_events[MAX_EVENTS];
 
-
-#define IJTYPE_TELEPHONY    "telephony"
-#define IJTYPE_PEDOMETER    "pedometer"
-#define IJTYPE_SDCARD       "sdcard"
-
-bool epoll_ctl_add(const int fd);
-
-void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
-void userpool_delete(int cli_fd);
-
-bool epoll_init(void);            /* epoll fd create */
-bool epoll_ctl_add(const int fd);
-
-void init_data0(void);            /* initialize data. */
-bool init_server0(int svr_port, int* ret_fd);
-void end_server(int sig);
-
-void udp_init(void);
-void emuld_ready(void);
-
-bool server_process(void);
-bool accept_proc(const int server_fd);
-
-int recv_data(int event_fd, char** r_databuf, int size);
-int parse_val(char *buff, unsigned char data, char *parsbuf);
-
-#ifdef CONFIG_VMODEM
-void set_vm_connect_status(const int v);
-bool is_vm_connected(void);
-void* init_vm_connect(void* data);
+#if defined(ENABLE_DLOG_OUT)
+#  define LOG_TAG           "EMULATOR_DAEMON"
+#  include <dlog/dlog.h>
+#  define LOGINFO LOGI
+#  define LOGERR LOGE
+#  define LOGDEBUG LOGD
+#else
+#  define LOGINFO(fmt, arg...) printf(fmt, arg...)
+#  define LOGERR(fmt, arg...) printf(fmt, arg...)
+#  define LOGDEBUG(fmt, arg...) printf(fmt, arg...)
 #endif
-
-void set_pedometer_connect_status(const int v);
-bool is_pedometer_connected(void);
-void* init_pedometer_connect(void* data);
-
-void systemcall(const char* param);
-
-void print_binary(const char* data, const int len); 
-void recv_from_evdi(evdi_fd fd);
-
-int powerdown_by_force(void);
-// location
-void setting_location(char* databuf);
-
-#define LOG(fmt, arg...) \
-    do { \
-        log_print_out("[%s:%d] "fmt"\n", __FUNCTION__, __LINE__, ##arg); \
-    } while (0)
-
-#include <map>
 
 typedef unsigned short  CliSN;
 
@@ -173,12 +100,26 @@ bool send_to_all_ij(char* data, const int len);
 bool is_ij_exist();
 void stop_listen(void);
 
+bool epoll_ctl_add(const int fd);
+void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
+void userpool_delete(int cli_fd);
+
 struct fd_info
 {
     fd_info() : fd(-1){}
     int fd;
     int fdtype;
 };
+
+struct LXT_MESSAGE
+{
+    unsigned short length;
+    unsigned char group;
+    unsigned char action;
+    void *data;
+};
+
+typedef struct LXT_MESSAGE LXT_MESSAGE;
 
 struct ijcommand
 {
@@ -202,18 +143,53 @@ struct ijcommand
     LXT_MESSAGE msg;
 };
 
-void process_evdi_command(ijcommand* ijcmd);
+struct _auto_mutex
+{
+    _auto_mutex(pthread_mutex_t* t)
+    {
+        _mutex = t;
+        pthread_mutex_lock(_mutex);
+
+    }
+    ~_auto_mutex()
+    {
+        pthread_mutex_unlock(_mutex);
+    }
+
+    pthread_mutex_t* _mutex;
+};
+
+struct setting_device_param
+{
+    setting_device_param() : get_status_sockfd(-1), ActionID(0)
+    {
+        memset(type_cmd, 0, ID_SIZE);
+    }
+    int get_status_sockfd;
+    unsigned char ActionID;
+    char type_cmd[ID_SIZE];
+};
+
 bool read_ijcmd(const int fd, ijcommand* ijcmd);
+int recv_data(int event_fd, char** r_databuf, int size);
+void recv_from_evdi(evdi_fd fd);
+bool accept_proc(const int server_fd);
 
-void* setting_device(void* data);
+void send_default_suspend_req(void);
+void systemcall(const char* param);
+int parse_val(char *buff, unsigned char data, char *parsbuf);
 
-// msg proc
-bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_nfc(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
+void msgproc_suspend(int fd, ijcommand* ijcmd);
+void msgproc_system(int fd, ijcommand* ijcmd);
+void msgproc_location(int fd, ijcommand* ijcmd);
+void msgproc_sdcard(int fd, ijcommand* ijcmd);
 
-#endif //__emuld_h__
+/*
+ * For the multi-profile
+ */
+void process_evdi_command(ijcommand* ijcmd);
+bool server_process(void);
+void init_profile(void);
+void exit_profile(void);
+
+#endif

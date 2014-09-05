@@ -27,14 +27,9 @@
  *
  */
 
+#ifndef __MOBILE_H__
+#define __MOBILE_H__
 
-#ifndef __log_h__
-#define __log_h__
-
-
-void make_timestamp(char* ret);
-void log_print_out(const char *fmt, ...);
-
-
+void msgproc_sensor(const int sockfd, ijcommand* ijcmd);
 
 #endif

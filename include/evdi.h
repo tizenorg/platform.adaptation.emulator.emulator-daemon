@@ -28,8 +28,32 @@
  */
 
 
-#ifndef __evdi_h__
-#define __evdi_h__
+#ifndef __EVDI_H__
+#define __EVDI_H__
+
+#define __MAX_BUF_SIZE  1024
+
+#include <stdarg.h>
+
+enum
+{
+    route_qemu = 0,
+    route_control_server = 1,
+    route_monitor = 2
+};
+
+typedef unsigned int CSCliSN;
+
+struct msg_info {
+    char buf[__MAX_BUF_SIZE];
+
+    uint32_t route;
+    uint32_t use;
+    uint16_t count;
+    uint16_t index;
+
+    CSCliSN cclisn;
+};
 
 typedef int     evdi_fd;
 
@@ -40,7 +64,5 @@ evdi_fd open_device(void);
 bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int len);
 bool send_to_evdi(evdi_fd fd, const char* msg, const int len);
 bool msg_send_to_evdi(evdi_fd fd, const char* data, const int len);
-
-
 
 #endif
