@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include "emuld.h"
+#include "wearable.h"
 
 enum
 {
@@ -46,7 +47,6 @@ enum
 unsigned short pedometer_port = PEDOMETER_PORT;
 static int g_pedometer_connect_status;
 static pthread_mutex_t mutex_pedometerconnect = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t mutex_pedo = PTHREAD_MUTEX_INITIALIZER;
 
 bool is_pedometer_connected(void)
 {
@@ -60,15 +60,14 @@ bool is_pedometer_connected(void)
 
 bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd)
 {
-    _auto_mutex _(&mutex_pedo);
-
     int sent = 0;
     const char* data = NULL;
 
+    LOGINFO("msgproc_pedometer");
     if (!is_pedometer_connected() || !ijcmd->data)
         return false;
 
-    LOGDEBUG("send data state: %s", ijcmd->data);
+    LOGINFO("send data state: %s", ijcmd->data);
 
     sent = send(g_fd[fdtype_pedometer], ijcmd->data, 1, 0);
     if (sent == -1)
@@ -114,10 +113,10 @@ void* init_pedometer_connect(void* data)
     {
         ret = connect(g_fd[fdtype_pedometer], (struct sockaddr *)&pedometer_addr, sizeof(pedometer_addr));
 
-        LOGDEBUG("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
+        LOGINFO("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
 
         if(ret < 0) {
-            LOGDEBUG("connection failed to pedometer! try \n");
+            LOGERR("connection failed to pedometer! try \n");
             sleep(1);
         }
     }
@@ -174,6 +173,10 @@ void process_evdi_command(ijcommand* ijcmd)
     if (strncmp(ijcmd->cmd, "suspend", 7) == 0)
     {
         msgproc_suspend(fd, ijcmd);
+    }
+    else if (strncmp(ijcmd->cmd, "sensor", 6) == 0)
+    {
+        msgproc_sensor(fd, ijcmd);
     }
     else if (strncmp(ijcmd->cmd, "pedometer", 9) == 0)
     {

@@ -30,6 +30,7 @@
 #include <stdio.h>
 
 #include "emuld.h"
+#include "wearable.h"
 
 enum sensor_type{
     BATTERYLEVEL = 8,
@@ -236,7 +237,7 @@ int parse_usb_data(int len, char *buffer)
     return 0;
 }
 
-void device_parser(char *buffer)
+static void device_parser(char *buffer)
 {
     int len = 0;
     int ret = 0;
@@ -270,5 +271,15 @@ void device_parser(char *buffer)
     }
 }
 
+void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_sensor");
 
+    if (ijcmd->msg.group != 15)
+    {
+        if (ijcmd->data != NULL && strlen(ijcmd->data) > 0) {
+            device_parser(ijcmd->data);
+        }
+    }
+}
 
