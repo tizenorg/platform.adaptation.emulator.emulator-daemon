@@ -187,7 +187,6 @@ void* mount_sdcard(void* data)
         else
         {
             LOGERR( "%s is not exist", file_name);
-            sleep(1);
         }
     }
 

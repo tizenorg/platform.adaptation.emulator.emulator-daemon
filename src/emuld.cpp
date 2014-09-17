@@ -74,66 +74,6 @@ bool epoll_ctl_add(const int fd)
     return true;
 }
 
-static bool init_server(int svr_port, int* ret_fd)
-{
-    struct sockaddr_in serv_addr;
-    int fd;
-
-    *ret_fd = -1;
-
-    /* Open TCP Socket */
-    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        LOGERR("Server Start Fails. : Can't open stream socket");
-        return false;
-    }
-
-    /* Address Setting */
-    memset(&serv_addr , 0 , sizeof(serv_addr)) ;
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(svr_port);
-
-    /* Set Socket Option  */
-    int nSocketOpt = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &nSocketOpt, sizeof(nSocketOpt)) < 0)
-    {
-        LOGERR("Server Start Fails. : Can't set reuse address");
-        goto fail;
-    }
-
-    /* Bind Socket */
-    if (bind(fd,(struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        LOGERR("Server Start Fails. : Can't bind local address");
-        goto fail;
-    }
-
-    /* Listening */
-    if (listen(fd, 15) < 0) /* connection queue is 15. */
-    {
-        LOGERR("Server Start Fails. : listen failure");
-        goto fail;
-    }
-
-	LOGINFO("[START] Now Server listening on port %d, EMdsockfd: %d"
-            ,svr_port, fd);
-
-    if (!epoll_ctl_add(fd))
-    {
-        LOGERR("Epoll control fails.");
-        goto fail;
-    }
-
-    *ret_fd = fd;
-
-    return true;
-fail:
-    close(fd);
-    return false;
-}
-
 static bool epoll_init(void)
 {
     g_epoll_fd = epoll_create(MAX_EVENTS); // create event pool
@@ -321,54 +261,12 @@ void recv_from_evdi(evdi_fd fd)
     process_evdi_command(&ijcmd);
 }
 
-bool accept_proc(const int server_fd)
-{
-    struct sockaddr_in cli_addr;
-    int cli_sockfd;
-    int cli_len = sizeof(cli_addr);
-
-    cli_sockfd = accept(server_fd, (struct sockaddr *)&cli_addr,(socklen_t *)&cli_len);
-    if(cli_sockfd < 0)
-    {
-        LOGERR("accept error");
-        return false;
-    }
-    else
-    {
-        LOGINFO("[Accept] New client connected. fd:%d, port:%d"
-                ,cli_sockfd, cli_addr.sin_port);
-
-        clipool_add(cli_sockfd, cli_addr.sin_port, fdtype_ij);
-        epoll_ctl_add(cli_sockfd);
-    }
-    return true;
-}
-
 int main( int argc , char *argv[])
 {
-	int g_svr_port = DEFAULT_PORT;
-
-    LOGINFO("emuld start");
-
-	/* entry , argument check and process */
-    if(argc >= 3 && strcmp("-port", argv[1]) ==  0 ) {
-        g_svr_port = atoi(argv[2]);
-        if(g_svr_port < 1024) {
-            LOGERR("[STOP] port number invalid : %d",g_svr_port);
-            exit(0);
-        }
-    }
-
     init_fd();
 
     if (!epoll_init())
     {
-        exit(0);
-    }
-
-    if (!init_server(g_svr_port, &g_fd[fdtype_server]))
-    {
-        close(g_epoll_fd);
         exit(0);
     }
 
@@ -378,7 +276,7 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
-    LOGINFO("[START] epoll events set success for server");
+    LOGINFO("[START] epoll & device init success");
 
 	init_profile();
 
@@ -392,9 +290,6 @@ int main( int argc , char *argv[])
 	exit_profile();
 
     stop_listen();
-
-    if (g_fd[fdtype_server])
-        close(g_fd[fdtype_server]);
 
     LOGINFO("emuld exit");
 

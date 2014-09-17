@@ -43,7 +43,6 @@
 
 enum
 {
-    fdtype_server     = 0,
     fdtype_device     = 1,
     fdtype_ij         = 4,
     fdtype_max        = FDTYPE_MAX
@@ -53,7 +52,6 @@ enum
 #define MAX_CLIENT          10000
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10
-#define DEFAULT_PORT        3577
 #define ID_SIZE             10
 #define HEADER_SIZE         4
 

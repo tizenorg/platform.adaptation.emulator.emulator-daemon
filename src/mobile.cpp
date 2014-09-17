@@ -82,11 +82,7 @@ bool server_process(void)
     for( i = 0 ; i < nfds ; i++ )
     {
         fd_tmp = g_events[i].data.fd;
-        if (fd_tmp == g_fd[fdtype_server])
-        {
-            accept_proc(fd_tmp);
-        }
-        else if (fd_tmp == g_fd[fdtype_device])
+        if (fd_tmp == g_fd[fdtype_device])
         {
             recv_from_evdi(fd_tmp);
         }

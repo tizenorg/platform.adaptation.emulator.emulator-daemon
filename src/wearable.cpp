@@ -61,7 +61,6 @@ bool is_pedometer_connected(void)
 bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd)
 {
     int sent = 0;
-    const char* data = NULL;
 
     LOGINFO("msgproc_pedometer");
     if (!is_pedometer_connected() || !ijcmd->data)
@@ -216,11 +215,7 @@ bool server_process(void)
     for( i = 0 ; i < nfds ; i++ )
     {
         fd_tmp = g_events[i].data.fd;
-        if (fd_tmp == g_fd[fdtype_server])
-        {
-            accept_proc(fd_tmp);
-        }
-        else if (fd_tmp == g_fd[fdtype_device])
+        if (fd_tmp == g_fd[fdtype_device])
         {
             recv_from_evdi(fd_tmp);
         }
