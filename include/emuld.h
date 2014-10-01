@@ -92,7 +92,6 @@ void clipool_add(int fd, unsigned short port, const int fdtype);
 void clipool_delete(int fd);
 void close_cli(int cli_fd);
 
-Cli* find_cli(const int fd);
 bool send_to_cli(const int fd, char* data, const int len);
 bool send_to_all_ij(char* data, const int len);
 bool is_ij_exist();

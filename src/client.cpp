@@ -82,19 +82,6 @@ void clipool_delete(int fd)
     LOGINFO("clipool_delete fd = %d", fd);
 }
 
-
-Cli* find_cli(const int fd)
-{
-    _auto_mutex _(&mutex_climap);
-
-    CliMap::iterator it = g_climap.find(fd);
-    if (it != g_climap.end())
-        return NULL;
-
-    Cli* cli = it->second;
-    return cli;
-}
-
 // for thread safe
 bool send_to_cli(const int fd, char* data, const int len)
 {

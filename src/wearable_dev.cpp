@@ -102,15 +102,11 @@ static void dbus_send_usb(int on)
 
 static void dbus_send_earjack(int on)
 {
-	int value = 0;
 	const char* earjack_device = DEVICE_CHANGED;
     char option [128];
     memset(option, 0, 128);
 
-	if (on)
-		value = 1;
-
-    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", value);
+    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
 
     dbus_send(earjack_device, option);
 }
