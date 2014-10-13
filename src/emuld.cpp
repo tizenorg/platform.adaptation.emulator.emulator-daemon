@@ -217,7 +217,7 @@ void recv_from_evdi(evdi_fd fd)
         }
     }
 
-    LOGDEBUG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
+    LOGINFO("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
             readed, _msg.count, _msg.index, _msg.use, _msg.buf);
 
     g_synbuf.reset_buf();

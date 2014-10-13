@@ -27,10 +27,13 @@
  *
  */
 
+#include <sys/mount.h>
+#include <errno.h>
+#include <unistd.h>
+
 // SD Card
 #include <dirent.h>
 #include <sys/stat.h>
-#include <sys/mount.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <mntent.h>
@@ -45,6 +48,9 @@
 
 // SDCard
 #define IJTYPE_SDCARD       "sdcard"
+
+// HDS
+#define IJTYPE_HDS          "hds"
 
 char SDpath[256];
 
@@ -218,7 +224,7 @@ int umount_sdcard(const int fd)
 
     LOGINFO("start sdcard umount");
 
-    pthread_cancel(tid[1]);
+    pthread_cancel(tid[TID_SDCARD]);
 
     for (i = 0; i < 10; i++)
     {
@@ -226,23 +232,23 @@ int umount_sdcard(const int fd)
         ret = access(file_name, F_OK);
         if (ret == 0)
         {
-			LOGDEBUG("SDpath is %s", SDpath);
+            LOGDEBUG("SDpath is %s", SDpath);
 
-			packet->length = strlen(SDpath);        // length
-			packet->group = 11;                     // sdcard
-			packet->action = 0;                     // unmounted
+            packet->length = strlen(SDpath);        // length
+            packet->group = 11;                     // sdcard
+            packet->action = 0;                     // unmounted
 
-			const int tmplen = HEADER_SIZE + packet->length;
-			char* tmp = (char*) malloc(tmplen);
-			if (!tmp)
-				break;
+            const int tmplen = HEADER_SIZE + packet->length;
+            char* tmp = (char*) malloc(tmplen);
+            if (!tmp)
+                break;
 
-			memcpy(tmp, packet, HEADER_SIZE);
-			memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
+            memcpy(tmp, packet, HEADER_SIZE);
+            memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
 
-			ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
+            ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
-			free(tmp);
+            free(tmp);
 
             memset(SDpath, '\0', sizeof(SDpath));
             sprintf(SDpath, "umounted");
@@ -299,7 +305,7 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
                 if (!param)
                     break;
 
-                if (pthread_create(&tid[1], NULL, mount_sdcard, (void*) param) != 0)
+                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, (void*) param) != 0)
                     LOGERR("mount sdcard pthread create fail!");
             }
 
@@ -467,7 +473,7 @@ static char* get_location_status(void* p)
     return message;
 }
 
-static void* setting_device(void* data)
+static void* getting_location(void* data)
 {
     pthread_detach(pthread_self());
 
@@ -492,30 +498,30 @@ static void* setting_device(void* data)
         break;
     }
 
-	if (msg == 0)
-	{
-		LOGDEBUG("send error message to injector");
-		memset(packet, 0, sizeof(LXT_MESSAGE));
-		packet->length = 0;
-		packet->group = STATUS;
-		packet->action = param->ActionID;
-	}
-	else
-	{
-		LOGDEBUG("send data to injector");
-	}
+    if (msg == 0)
+    {
+        LOGDEBUG("send error message to injector");
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = 0;
+        packet->group = STATUS;
+        packet->action = param->ActionID;
+    }
+    else
+    {
+        LOGDEBUG("send data to injector");
+    }
 
-	const int tmplen = HEADER_SIZE + packet->length;
-	char* tmp = (char*) malloc(tmplen);
-	if (tmp)
-	{
-		memcpy(tmp, packet, HEADER_SIZE);
-		if (packet->length > 0)
-			memcpy(tmp + HEADER_SIZE, msg, packet->length);
+    const int tmplen = HEADER_SIZE + packet->length;
+    char* tmp = (char*) malloc(tmplen);
+    if (tmp)
+    {
+        memcpy(tmp, packet, HEADER_SIZE);
+        if (packet->length > 0)
+            memcpy(tmp + HEADER_SIZE, msg, packet->length);
 
-		ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
+        ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
 
-		free(tmp);
+        free(tmp);
     }
 
     if(msg != 0)
@@ -604,7 +610,7 @@ void msgproc_location(const int sockfd, ijcommand* ijcmd)
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
-        if (pthread_create(&tid[2], NULL, setting_device, (void*) param) != 0)
+        if (pthread_create(&tid[TID_LOCATION], NULL, getting_location, (void*) param) != 0)
         {
             LOGERR("location pthread create fail!");
             return;
@@ -616,5 +622,113 @@ void msgproc_location(const int sockfd, ijcommand* ijcmd)
     }
 }
 
+static char* make_header_msg(int group, int action)
+{
+    char *tmp = (char*) malloc(HEADER_SIZE);
+    if (!tmp)
+        return NULL;
+
+    memset(tmp, 0, HEADER_SIZE);
+
+    memcpy(tmp + 2, &group, 1);
+    memcpy(tmp + 3, &action, 1);
+
+    return tmp;
+}
+
+#define MSG_GROUP_HDS   100
+
+void* mount_hds(void* data)
+{
+    int i, ret = 0;
+    char* tmp;
+    int group, action;
+
+    LOGINFO("start hds mount thread");
+
+    pthread_detach(pthread_self());
+
+    usleep(1000);
+
+    for (i = 0; i < 10; i++)
+    {
+        ret = mount("fileshare", "/mnt/host", "9p", 0,
+                    "trans=virtio,version=9p2000.L,msize=65536");
+        if(ret == 0) {
+            action = 1;
+            break;
+        } else {
+            LOGERR("%d trial: mount is failed with errno: %d", i, errno);
+        }
+        usleep(100);
+    }
+
+    group = MSG_GROUP_HDS;
+
+    if (i == 10 || ret != 0)
+        action = 2;
+
+    tmp = make_header_msg(group, action);
+    if (!tmp) {
+        LOGERR("failed to alloc: out of resource.");
+        pthread_exit((void *) 0);
+        return NULL;
+    }
+
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
+
+    free(tmp);
+
+    pthread_exit((void *) 0);
+}
+
+int umount_hds(void)
+{
+    int ret = 0;
+    char* tmp;
+    int group, action;
+
+    pthread_cancel(tid[TID_HDS]);
+
+    LOGINFO("unmount /mnt/host.");
+
+    ret = umount("/mnt/host");
+    if (ret != 0) {
+        LOGERR("unmount failed with error num: %d", errno);
+        action = 4;
+    } else {
+        action = 3;
+    }
+
+    group = MSG_GROUP_HDS;
+
+    tmp = make_header_msg(group, action);
+    if (!tmp) {
+        LOGERR("failed to alloc: out of resource.");
+        return -1;
+    }
+
+    LOGINFO("send result with action %d to evdi", action);
+
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
+
+    free(tmp);
+
+    return 0;
+}
+
+void msgproc_hds(const int sockfd, ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_hds");
+
+    if (ijcmd->msg.action == 1) {
+        if (pthread_create(&tid[TID_HDS], NULL, mount_hds, NULL) != 0)
+            LOGERR("mount hds pthread create fail!");
+    } else if (ijcmd->msg.action == 2) {
+        umount_hds();
+    } else {
+        LOGERR("unknown action cmd.");
+    }
+}
 
 

@@ -37,8 +37,6 @@
 #define STATUS              15
 #define RSSI_LEVEL          104
 
-static int battery_level = 50;
-
 enum sensor_type{
     MOTION = 6,
     USBKEYBOARD = 7,
@@ -77,6 +75,87 @@ enum motion_move{
     SENSOR_MOTION_MOVE_NONE = 0,
     SENSOR_MOTION_MOVE_MOVETOCALL = 1
 };
+
+static void system_cmd(const char* msg)
+{
+    int ret = system(msg);
+    if (ret == -1) {
+        LOGERR("system command is failed: %s", msg);
+    }
+}
+
+#define DBUS_SEND_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/SysNoti org.tizen.system.deviced.SysNoti."
+static void dbus_send(const char* device, const char* option)
+{
+    const char* dbus_send_cmd = DBUS_SEND_CMD;
+    char* cmd;
+
+    if (device == NULL || option == NULL)
+        return;
+
+    cmd = (char*)malloc(512);
+    if (cmd == NULL)
+        return;
+
+    memset(cmd, 0, 512);
+
+    sprintf(cmd, "%s%s string:\"%s\" %s", dbus_send_cmd, device, device, option);
+
+    system_cmd(cmd);
+    LOGINFO("dbus_send: %s", cmd);
+
+    free(cmd);
+}
+
+#define POWER_SUPPLY    "power_supply"
+#define FULL            "Full"
+#define CHARGING        "Charging"
+#define DISCHARGING     "Discharging"
+static void dbus_send_power_supply(int capacity, int charger)
+{
+    const char* power_device = POWER_SUPPLY;
+    char state [16];
+    char option [128];
+    memset(state, 0, 16);
+    memset(option, 0, 128);
+
+    if (capacity == 100 && charger == 1) {
+		memcpy(state, FULL, 4);
+    } else if (charger == 1) {
+		memcpy(state, CHARGING, 8);
+    } else {
+		memcpy(state, DISCHARGING, 11);
+    }
+
+    sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
+            capacity, state, (charger + 1));
+
+    dbus_send(power_device, option);
+}
+
+#define DEVICE_CHANGED      "device_changed"
+
+static void dbus_send_usb(int on)
+{
+    const char* usb_device = DEVICE_CHANGED;
+    char option [128];
+    memset(option, 0, 128);
+
+    sprintf(option, "int32:2 string:\"usb\" string:\"%d\"", on);
+
+    dbus_send(usb_device, option);
+}
+
+static void dbus_send_earjack(int on)
+{
+	const char* earjack_device = DEVICE_CHANGED;
+    char option [128];
+    memset(option, 0, 128);
+
+    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
+
+    dbus_send(earjack_device, option);
+}
 
 int parse_motion_data(int len, char *buffer)
 {
@@ -164,185 +243,64 @@ int parse_motion_data(int len, char *buffer)
     return 0;
 }
 
-#define PATH_BATTERY_CAPACITY       "sys/class/power_supply/battery/capacity"
-#define PATH_BATTERY_CHARGER_ON     "/sys/devices/platform/jack/charger_online"
-#define PATH_BATTERY_CHARGE_FULL    "/sys/class/power_supply/battery/charge_full"
-#define PATH_BATTERY_CHARGE_NOW     "/sys/class/power_supply/battery/charge_now"
+#define FILE_BATTERY_CAPACITY "/sys/class/power_supply/battery/capacity"
+#define FILE_BATTERY_CHARGER_ONLINE "/sys/devices/platform/jack/charger_online"
+#define FILE_BATTERY_CHARGE_FULL "/sys/class/power_supply/battery/charge_full"
+#define FILE_BATTERY_CHARGE_NOW "/sys/class/power_supply/battery/charge_now"
 
-int parse_batterylevel_data(int len, char *buffer)
+static int read_from_file(const char* file_name)
 {
-    int len1=0, id = 0, ret = 0;
-    char tmpbuf[255];
-    int level = 0, charger = 0, charger_online = 0, charge_full = 0;
+    int ret;
     FILE* fd;
+    int value;
 
-    LOGDEBUG("read data: %s", buffer);
-
-    // read param count
-    memset(tmpbuf, '\0', sizeof(tmpbuf));
-    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-    len += len1;
-
-    /* first data */
-    memset(tmpbuf, '\0', sizeof(tmpbuf));
-    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-    len += len1;
-
-    id = atoi(tmpbuf);
-    if(id == 1) // level
+    fd = fopen(file_name, "r");
+    if(!fd)
     {
-        memset(tmpbuf, '\0', sizeof(tmpbuf));
-        len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-        len += len1;
-
-        level = atoi(tmpbuf);
-        battery_level = level;
-
-        if(level == 100)
-        {
-            charger = 0;
-        }
-        else
-        {
-            charger = 1;
-        }
-
-        fd = fopen(PATH_BATTERY_CAPACITY, "w");
-        if(!fd)
-        {
-            LOGERR("fopen fail");
-            return -1;
-        }
-        fprintf(fd, "%d", level);
-        fclose(fd);
-
-        fd = fopen(PATH_BATTERY_CHARGER_ON, "r");
-        if(!fd)
-        {
-            LOGERR("fopen fail");
-            return -1;
-        }
-        ret = fscanf(fd, "%d", &charger_online);
-        fclose(fd);
-        if (ret < 0)
-        {
-            LOGERR("failed to get charger_online value");
-            return -1;
-        }
-
-        LOGDEBUG("charge_online: %d", charger_online);
-
-        if(charger_online == 1 && level == 100)
-        {
-            charge_full = 1;
-        }
-        else
-        {
-            charge_full = 0;
-        }
-        LOGDEBUG("charge_full: %d", charge_full);
-
-        fd = fopen(PATH_BATTERY_CHARGE_FULL, "w");
-        if(!fd)
-        {
-            LOGERR("charge_full fopen fail");
-            return -1;
-        }
-        fprintf(fd, "%d", charge_full);
-        fclose(fd);
-
-        if(charger_online == 1)
-        {
-            fd = fopen(PATH_BATTERY_CHARGE_NOW, "w");
-            if(!fd)
-            {
-                LOGERR("charge_now fopen fail");
-                return -1;
-            }
-            fprintf(fd, "%d", charger);
-            fclose(fd);
-        }
-
-        // because time based polling
-        systemcall("/usr/bin/sys_event device_charge_chgdet");
-    }
-    else if(id == 2)
-    {
-        /* second data */
-        memset(tmpbuf, '\0', sizeof(tmpbuf));
-        len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-        len += len1;
-
-        charger = atoi(tmpbuf);
-        fd = fopen(PATH_BATTERY_CHARGER_ON, "w");
-        if(!fd)
-        {
-            LOGERR("charger_online fopen fail");
-            return -1;
-        }
-        fprintf(fd, "%d", charger);
-        fclose(fd);
-
-        fd = fopen(PATH_BATTERY_CHARGE_FULL, "w");
-        if(!fd)
-        {
-            LOGERR("charge_full fopen fail");
-            return -1;
-        }
-
-        if(battery_level == 100 && charger == 1)
-        {
-            fprintf(fd, "%d", 1);   // charge full
-            charger = 0;
-        }
-        else
-        {
-            fprintf(fd, "%d", 0);
-        }
-        fclose(fd);
-
-        systemcall("/usr/bin/sys_event device_charge_chgdet");
-
-        fd = fopen(PATH_BATTERY_CHARGE_NOW, "w");
-        if(!fd)
-        {
-            LOGERR("charge_now fopen fail");
-            return -1;
-        }
-        fprintf(fd, "%d", charger);
-        fclose(fd);
-
-        // because time based polling
-        systemcall("/usr/bin/sys_event device_ta_chgdet");
+        LOGERR("fopen fail: %s", file_name);
+        return -1;
     }
 
-    return 0;
+    ret = fscanf(fd, "%d", &value);
+    fclose(fd);
+    if (ret <= 0) {
+        LOGERR("failed to get value");
+        return -1;
+    }
+
+    return value;
 }
 
-int parse_rssi_data(int len, char *buffer)
+static void write_to_file(const char* file_name, int value)
 {
-    int len1=0;
-    char tmpbuf[255];
-    int x;
-    char command[128];
-    memset(command, '\0', sizeof(command));
+    FILE* fd;
 
-    LOGDEBUG("read data: %s", buffer);
+    fd = fopen(file_name, "w");
+    if(!fd)
+    {
+        LOGERR("fopen fail: %s", file_name);
+        return;
+    }
+    fprintf(fd, "%d", value);
+    fclose(fd);
+}
 
-    // read param count
-    memset(tmpbuf, '\0', sizeof(tmpbuf));
-    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-    len += len1;
+int set_battery_data(void)
+{
+    int charger_online = 0;
+    int battery_level = 0;
 
-    /* first data */
-    memset(tmpbuf, '\0', sizeof(tmpbuf));
-    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
-    len += len1;
+    battery_level = read_from_file(FILE_BATTERY_CAPACITY);
+    LOGINFO("battery level: %d", battery_level);
+    if (battery_level < 0)
+        return -1;
 
-    x = atoi(tmpbuf);
+    charger_online = read_from_file(FILE_BATTERY_CHARGER_ONLINE);
+    LOGINFO("charge_online: %d", charger_online);
+    if (charger_online < 0)
+        return -1;
 
-    sprintf(command, "vconftool set -t int memory/telephony/rssi %d -i -f", x);
-    systemcall(command);
+    dbus_send_power_supply(battery_level, charger_online);
 
     return 0;
 }
@@ -379,20 +337,52 @@ int parse_earjack_data(int len, char *buffer)
     fclose(fd);
 
     // because time based polling
-    systemcall("/usr/bin/sys_event device_earjack_chgdet");
-
+	//FIXME: change to dbus
+    //system_cmd("/usr/bin/sys_event device_earjack_chgdet");
+	dbus_send_earjack(x);
     return 0;
 }
 
-#define PATH_JACK_USB               "/sys/devices/platform/jack/usb_online"
+#define FILE_USB_ONLINE "/sys/devices/platform/jack/usb_online"
 int parse_usb_data(int len, char *buffer)
 {
     int len1=0;
     char tmpbuf[255];
     int x;
-    FILE* fd;
 
-    LOGDEBUG("read data: %s", buffer);
+    #ifdef SENSOR_DEBUG
+    LOG("read data: %s", buffer);
+    #endif
+    // read param count
+    memset(tmpbuf, '\0', sizeof(tmpbuf));
+    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
+    len += len1;
+
+    /* first data */
+    memset(tmpbuf, '\0', sizeof(tmpbuf));
+    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
+    len += len1;
+
+    x = atoi(tmpbuf);
+
+    write_to_file(FILE_USB_ONLINE, x);
+
+    // because time based polling
+    dbus_send_usb(x);
+
+    return 0;
+}
+
+
+int parse_rssi_data(int len, char *buffer)
+{
+    int len1=0;
+    char tmpbuf[255];
+    int x;
+    char command[128];
+    memset(command, '\0', sizeof(command));
+
+    LOGINFO("read data: %s", buffer);
 
     // read param count
     memset(tmpbuf, '\0', sizeof(tmpbuf));
@@ -406,21 +396,13 @@ int parse_usb_data(int len, char *buffer)
 
     x = atoi(tmpbuf);
 
-    fd = fopen(PATH_JACK_USB, "w");
-    if(!fd)
-    {
-        LOGERR("usb_online fopen fail");
-        return -1;
-    }
-    fprintf(fd, "%d", x);
-    fclose(fd);
+    sprintf(command, "vconftool set -t int memory/telephony/rssi %d -i -f", x);
+    systemcall(command);
 
-    // because time based polling
-    systemcall("/usr/bin/sys_event device_usb_chgdet");
     return 0;
 }
 
-void device_parser(char *buffer)
+void setting_sensor(char *buffer)
 {
     int len = 0;
     int ret = 0;
@@ -440,14 +422,9 @@ void device_parser(char *buffer)
             LOGERR("motion parse error!");
         break;
     case BATTERYLEVEL:
-        ret = parse_batterylevel_data(len, buffer);
+        ret = set_battery_data();
         if(ret < 0)
             LOGERR("batterylevel parse error!");
-        break;
-    case RSSI:
-        ret = parse_rssi_data(len, buffer);
-        if(ret < 0)
-            LOGERR("rssi parse error!");
         break;
     case EARJACK:
         ret = parse_earjack_data(len, buffer);
@@ -459,28 +436,16 @@ void device_parser(char *buffer)
         if(ret < 0)
             LOGERR("usb parse error!");
         break;
+    case RSSI:
+        ret = parse_rssi_data(len, buffer);
+        if(ret < 0)
+            LOGERR("rssi parse error!");
+        break;
     default:
         break;
     }
 }
 
-static int inline get_status(const char* filename)
-{
-    int ret;
-    int status = 0;
-    FILE* fd = fopen(filename, "r");
-    if(!fd)
-        return -1;
-
-    ret = fscanf(fd, "%d", &status);
-    fclose(fd);
-
-    if (ret < 0) {
-        return ret;
-    }
-
-    return status;
-}
 
 static int inline get_vconf_status(char* msg, const char* key, int buf_len)
 {
@@ -519,7 +484,7 @@ char* get_rssi_level(void* p)
     return message;
 }
 
-static void* setting_device(void* data)
+static void* getting_sensor(void* data)
 {
     pthread_detach(pthread_self());
 
@@ -603,7 +568,7 @@ void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
-        if (pthread_create(&tid[2], NULL, setting_device, (void*)param) != 0)
+        if (pthread_create(&tid[TID_SENSOR], NULL, getting_sensor, (void*)param) != 0)
         {
             LOGERR("sensor pthread create fail!");
             return;
@@ -613,7 +578,7 @@ void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
     else
     {
         if (ijcmd->data != NULL && strlen(ijcmd->data) > 0) {
-            device_parser(ijcmd->data);
+            getting_sensor(ijcmd->data);
         }
     }
 }

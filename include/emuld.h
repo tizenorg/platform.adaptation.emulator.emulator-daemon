@@ -55,6 +55,11 @@ enum
 #define ID_SIZE             10
 #define HEADER_SIZE         4
 
+// Thread TID profile uses >= 5
+#define TID_SDCARD			1
+#define TID_LOCATION		2
+#define TID_HDS				3
+
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
 extern bool exit_flag;
@@ -178,6 +183,7 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 
 void msgproc_suspend(int fd, ijcommand* ijcmd);
 void msgproc_system(int fd, ijcommand* ijcmd);
+void msgproc_hds(int fd, ijcommand* ijcmd);
 void msgproc_location(int fd, ijcommand* ijcmd);
 void msgproc_sdcard(int fd, ijcommand* ijcmd);
 

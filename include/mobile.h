@@ -30,6 +30,8 @@
 #ifndef __MOBILE_H__
 #define __MOBILE_H__
 
+#define TID_SENSOR			5
+
 void msgproc_sensor(const int sockfd, ijcommand* ijcmd);
 
 #endif

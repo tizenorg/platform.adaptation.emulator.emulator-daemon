@@ -32,7 +32,6 @@
 #include <unistd.h>
 
 #include "emuld.h"
-
 #include "deviced/dd-display.h"
 
 #define PMAPI_RETRY_COUNT   3
@@ -161,7 +160,6 @@ void send_default_suspend_req(void)
     memcpy(tmp, packet, HEADER_SIZE);
 
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SUSPEND, (const char*) tmp, tmplen);
-
 
     if (tmp)
         free(tmp);

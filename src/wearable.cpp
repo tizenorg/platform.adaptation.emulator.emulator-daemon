@@ -140,7 +140,7 @@ void recv_from_pedometer(int fd)
 
         close(fd);
 
-        if (pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
+        if (pthread_create(&tid[TID_PEDOMETER], NULL, init_pedometer_connect, NULL) != 0)
         {
             LOGERR("pthread create fail!");
         }
@@ -184,6 +184,10 @@ void process_evdi_command(ijcommand* ijcmd)
     else if (strncmp(ijcmd->cmd, "location", 8) == 0)
     {
         msgproc_location(fd, ijcmd);
+    }
+    else if (strncmp(ijcmd->cmd, "hds", 3) == 0)
+    {
+        msgproc_hds(fd, ijcmd);
     }
     else if (strncmp(ijcmd->cmd, "system", 6) == 0)
     {
@@ -234,7 +238,7 @@ bool server_process(void)
 
 void init_profile(void)
 {
-    if(pthread_create(&tid[3], NULL, init_pedometer_connect, NULL) != 0)
+    if(pthread_create(&tid[TID_PEDOMETER], NULL, init_pedometer_connect, NULL) != 0)
     {
         LOGERR("pthread create fail!");
         close(g_epoll_fd);
@@ -248,7 +252,7 @@ void exit_profile(void)
     if (!is_pedometer_connected())
     {
         int status;
-        pthread_join(tid[3], (void **)&status);
+        pthread_join(tid[TID_PEDOMETER], (void **)&status);
         LOGINFO("pedometer thread end %d\n", status);
 	}
 

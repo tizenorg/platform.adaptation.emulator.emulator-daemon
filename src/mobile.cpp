@@ -52,6 +52,10 @@ void process_evdi_command(ijcommand* ijcmd)
     {
         msgproc_location(fd, ijcmd);
     }
+    else if (strncmp(ijcmd->cmd, "hds", 3) == 0)
+    {
+        msgproc_hds(fd, ijcmd);
+    }
     else if (strncmp(ijcmd->cmd, "system", 6) == 0)
     {
         msgproc_system(fd, ijcmd);
