@@ -648,9 +648,9 @@ void* mount_hds(void* data)
 
     pthread_detach(pthread_self());
 
-    usleep(1000);
+    usleep(500000);
 
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 20; i++)
     {
         ret = mount("fileshare", "/mnt/host", "9p", 0,
                     "trans=virtio,version=9p2000.L,msize=65536");
@@ -660,12 +660,12 @@ void* mount_hds(void* data)
         } else {
             LOGERR("%d trial: mount is failed with errno: %d", i, errno);
         }
-        usleep(100);
+        usleep(500000);
     }
 
     group = MSG_GROUP_HDS;
 
-    if (i == 10 || ret != 0)
+    if (i == 20 || ret != 0)
         action = 2;
 
     tmp = make_header_msg(group, action);
