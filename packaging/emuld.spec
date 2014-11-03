@@ -1,17 +1,14 @@
 Name: emuld
-Version: 0.5.3
+Version: 0.8.0
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
-
-%if ("%{_repository}" == "mobile")
+%if "%{?tizen_profile_name}" == "mobile"
 Source1001: packaging/emuld_mobile.manifest
-%endif
-
-%if ("%{_repository}" == "wearable")
-Source1002: packaging/emuld_wearable.manifest
+%elseif "%{?tizen_profile_name}" == "wearable"
+Source1001: packaging/emuld_wearable.manifest
 %endif
 
 BuildRequires: cmake
@@ -19,12 +16,8 @@ BuildRequires: pkgconfig(vconf)
 BuildRequires: pkgconfig(deviced)
 BuildRequires: pkgconfig(dlog)
 
-%if ("%{_repository}" == "wearable")
+%if "%{?tizen_profile_name}" == "wearable"
 Requires: context-manager
-%endif
-
-%if ("%{_repository}" == "mobile")
-BuildRequires: pkgconfig(pmapi)
 %endif
 
 %description
@@ -33,8 +26,10 @@ A emulator daemon is used for communication between guest and host
 %prep
 %setup -q
 
-%if ("%{_repository}" == "mobile")
+%if "%{?tizen_profile_name}" == "mobile"
 export CFLAGS+=" -DMOBILE"
+%elseif "%{?tizen_profile_name}" == "wearable"
+export CFLAGS+=" -DWEARABLE"
 %endif
 
 cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
@@ -59,14 +54,12 @@ cp LICENSE %{buildroot}/usr/share/license/%{name}
 %make_install
 
 %clean
-%if ("%{_repository}" == "mobile")
 make clean
 rm -rf CMakeCache.txt
 rm -rf CMakeFiles
 rm -rf cmake_install.cmake
 rm -rf Makefile
 rm -rf install_manifest.txt
-%endif
 
 %post
 chmod 770 %{_prefix}/bin/emuld
@@ -74,12 +67,10 @@ chmod 770 %{_prefix}/bin/emuld
 %files
 %defattr(-,root,root,-)
 
-%if ("%{_repository}" == "wearable")
-%manifest packaging/emuld_wearable.manifest
-%endif
-
-%if ("%{_repository}" == "mobile")
+%if "%{?tizen_profile_name}" == "mobile"
 %manifest packaging/emuld_mobile.manifest
+%elseif "%{?tizen_profile_name}" == "wearable"
+%manifest packaging/emuld_wearable.manifest
 %endif
 
 %{_prefix}/bin/emuld

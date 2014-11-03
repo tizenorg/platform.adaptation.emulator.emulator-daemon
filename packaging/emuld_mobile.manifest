@@ -1,5 +1,11 @@
 <manifest>
- <request>
-    <domain name="_"/>
- </request>
+	<define>
+		<domain name="emuld"/>
+		<request>
+			<smack request="deviced::display" type="rw" />
+		</request>
+	</define>
+	<request>
+		<domain name="emuld" />
+	</request>
 </manifest>

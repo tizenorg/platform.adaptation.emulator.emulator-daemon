@@ -9,7 +9,7 @@
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,41 +21,17 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
  */
 
+#ifndef __MOBILE_H__
+#define __MOBILE_H__
 
-#ifndef EVDI_PROTOCOL_H_
-#define EVDI_PROTOCOL_H_
+#define TID_SENSOR			5
 
-/* device protocol */
+void msgproc_sensor(const int sockfd, ijcommand* ijcmd);
 
-#define __MAX_BUF_SIZE  1024
-
-enum
-{
-    route_qemu = 0,
-    route_control_server = 1,
-    route_monitor = 2
-};
-
-typedef unsigned int CSCliSN;
-
-struct msg_info {
-    char buf[__MAX_BUF_SIZE];
-
-    uint32_t route;
-    uint32_t use;
-    uint16_t count;
-    uint16_t index;
-
-    CSCliSN cclisn;
-};
-
-/* device protocol */
-
-
-#endif /* EVDI_PROTOCOL_H_ */
+#endif
