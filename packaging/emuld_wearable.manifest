@@ -2,14 +2,8 @@
 	<define>
 		<domain name="emuld"/>
 		<request>
-			<smack request="context-manager" type="w" />
-			<smack request="system::use_internet" type="w" />
-			<smack request="system::debugging_network" type="w" />
+			<smack request="deviced::display" type="rw" />
 		</request>
-		<permit>
-			<smack permit="system::use_internet" type="w" />
-			<smack permit="system::debugging_network" type="w" />
-		</permit>
 	</define>
 	<request>
 		<domain name="emuld" />
