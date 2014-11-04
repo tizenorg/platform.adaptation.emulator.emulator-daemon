@@ -1,24 +1,15 @@
 Name: emuld
-Version: 0.8.0
+Version: 0.8.1
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
-%if "%{?tizen_profile_name}" == "mobile"
-Source1001: packaging/emuld_mobile.manifest
-%elseif "%{?tizen_profile_name}" == "wearable"
-Source1001: packaging/emuld_wearable.manifest
-%endif
 
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
 BuildRequires: pkgconfig(deviced)
 BuildRequires: pkgconfig(dlog)
-
-%if "%{?tizen_profile_name}" == "wearable"
-Requires: context-manager
-%endif
 
 %description
 A emulator daemon is used for communication between guest and host
@@ -66,13 +57,7 @@ chmod 770 %{_prefix}/bin/emuld
 
 %files
 %defattr(-,root,root,-)
-
-%if "%{?tizen_profile_name}" == "mobile"
-%manifest packaging/emuld_mobile.manifest
-%elseif "%{?tizen_profile_name}" == "wearable"
-%manifest packaging/emuld_wearable.manifest
-%endif
-
+%manifest emuld.manifest
 %{_prefix}/bin/emuld
 /usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service

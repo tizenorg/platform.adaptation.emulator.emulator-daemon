@@ -29,141 +29,9 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 
 #include "emuld.h"
 #include "wearable.h"
-
-enum
-{
-    fdtype_pedometer  = 3
-};
-
-#define PEDOMETER_PORT      3600
-
-#define IJTYPE_PEDOMETER    "pedometer"
-
-unsigned short pedometer_port = PEDOMETER_PORT;
-static int g_pedometer_connect_status;
-static pthread_mutex_t mutex_pedometerconnect = PTHREAD_MUTEX_INITIALIZER;
-
-bool is_pedometer_connected(void)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    if (g_pedometer_connect_status != 1)
-        return false;
-
-    return true;
-}
-
-bool msgproc_pedometer(const int sockfd, ijcommand* ijcmd)
-{
-    int sent = 0;
-
-    LOGINFO("msgproc_pedometer");
-    if (!is_pedometer_connected() || !ijcmd->data)
-        return false;
-
-    LOGINFO("send data state: %s", ijcmd->data);
-
-    sent = send(g_fd[fdtype_pedometer], ijcmd->data, 1, 0);
-    if (sent == -1)
-    {
-        LOGERR("pedometer send error");
-    }
-
-    LOGDEBUG("sent to pedometer daemon: %d byte", sent);
-
-    return true;
-}
-
-void set_pedometer_connect_status(const int v)
-{
-    _auto_mutex _(&mutex_pedometerconnect);
-
-    g_pedometer_connect_status = v;
-}
-
-void* init_pedometer_connect(void* data)
-{
-    struct sockaddr_in pedometer_addr;
-    int ret = -1;
-
-    set_pedometer_connect_status(0);
-
-    LOGINFO("init_pedometer_connect start\n");
-
-    pthread_detach(pthread_self());
-    if ((g_fd[fdtype_pedometer] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        LOGERR("Server Start Fails. : Can't open stream socket \n");
-        exit(0);
-    }
-
-    memset(&pedometer_addr , 0 , sizeof(pedometer_addr)) ;
-
-    pedometer_addr.sin_family = AF_INET;
-    pedometer_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    pedometer_addr.sin_port = htons(pedometer_port);
-
-    while (ret < 0 && !exit_flag)
-    {
-        ret = connect(g_fd[fdtype_pedometer], (struct sockaddr *)&pedometer_addr, sizeof(pedometer_addr));
-
-        LOGINFO("pedometer_sockfd: %d, connect ret: %d\n", g_fd[fdtype_pedometer], ret);
-
-        if(ret < 0) {
-            LOGERR("connection failed to pedometer! try \n");
-            sleep(1);
-        }
-    }
-
-    epoll_ctl_add(g_fd[fdtype_pedometer]);
-
-    set_pedometer_connect_status(1);
-
-    pthread_exit((void *) 0);
-}
-
-void recv_from_pedometer(int fd)
-{
-    printf("recv_from_pedometer\n");
-
-    ijcommand ijcmd;
-    if (!read_ijcmd(fd, &ijcmd))
-    {
-        LOGERR("fail to read ijcmd\n");
-
-        set_pedometer_connect_status(0);
-
-        close(fd);
-
-        if (pthread_create(&tid[TID_PEDOMETER], NULL, init_pedometer_connect, NULL) != 0)
-        {
-            LOGERR("pthread create fail!");
-        }
-        return;
-    }
-
-    LOGDEBUG("pedometer data length: %d", ijcmd.msg.length);
-    const int tmplen = HEADER_SIZE + ijcmd.msg.length;
-    char* tmp = (char*) malloc(tmplen);
-
-    if (tmp)
-    {
-        memcpy(tmp, &ijcmd.msg, HEADER_SIZE);
-        if (ijcmd.msg.length > 0)
-            memcpy(tmp + HEADER_SIZE, ijcmd.data, ijcmd.msg.length);
-
-        if(!ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_PEDOMETER, (const char*) tmp, tmplen)) {
-            LOGERR("msg_send_to_evdi: failed\n");
-        }
-
-        free(tmp);
-    }
-}
 
 void process_evdi_command(ijcommand* ijcmd)
 {
@@ -176,10 +44,6 @@ void process_evdi_command(ijcommand* ijcmd)
     else if (strncmp(ijcmd->cmd, "sensor", 6) == 0)
     {
         msgproc_sensor(fd, ijcmd);
-    }
-    else if (strncmp(ijcmd->cmd, "pedometer", 9) == 0)
-    {
-        msgproc_pedometer(fd, ijcmd);
     }
     else if (strncmp(ijcmd->cmd, "location", 8) == 0)
     {
@@ -227,10 +91,6 @@ bool server_process(void)
         {
             recv_from_evdi(fd_tmp);
         }
-        else if (fd_tmp == g_fd[fdtype_pedometer])
-        {
-            recv_from_pedometer(fd_tmp);
-        }
         else
         {
         	LOGERR("unknown request event fd : (%d)", fd_tmp);
@@ -242,27 +102,8 @@ bool server_process(void)
 
 void init_profile(void)
 {
-    if(pthread_create(&tid[TID_PEDOMETER], NULL, init_pedometer_connect, NULL) != 0)
-    {
-        LOGERR("pthread create fail!");
-        close(g_epoll_fd);
-        exit(0);
-    }
 }
 
 void exit_profile(void)
 {
-	int state;
-    if (!is_pedometer_connected())
-    {
-        int status;
-        pthread_join(tid[TID_PEDOMETER], (void **)&status);
-        LOGINFO("pedometer thread end %d\n", status);
-	}
-
-    state = pthread_mutex_destroy(&mutex_pedometerconnect);
-    if (state != 0)
-    {
-        LOGERR("mutex_pedometerconnect is failed to destroy.");
-    }
 }
