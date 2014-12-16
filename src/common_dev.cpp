@@ -417,7 +417,12 @@ void msgproc_cmd(int fd, ijcommand* ijcmd)
     pthread_t cmd_thread_id;
     char *cmd = (char*) malloc(ijcmd->msg.length + 1);
 
-    memset(cmd, 0x00, sizeof(cmd));
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
     strncpy(cmd, ijcmd->data, ijcmd->msg.length);
     LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
 
