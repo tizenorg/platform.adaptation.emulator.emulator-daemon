@@ -298,7 +298,7 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
             {
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
-                strcpy(SDpath, ret);
+                strncpy(SDpath, ret, strlen(ret));
                 LOGDEBUG("sdcard path is %s", SDpath);
 
                 mount_param* param = new mount_param(sockfd);
@@ -378,13 +378,16 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
                                     memcpy(tmp + HEADER_SIZE + mntData->length, mountinfo, mountinfo_size);
                                     mntData->length += mountinfo_size;
                                     memcpy(tmp, mntData, HEADER_SIZE);
-                                    delete mountinfo;
-                                    mountinfo = NULL;
+                                    free(mountinfo);
                                 }
 
                                 ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
                                 free(tmp);
+                            } else {
+                                if (mountinfo) {
+                                    free(mountinfo);
+                                }
                             }
                         }
                         break;
@@ -506,13 +509,16 @@ static char* get_location_status(void* p)
         }
     }
 
-    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
-    memset(packet, 0, sizeof(LXT_MESSAGE));
-    packet->length = strlen(message);
-    packet->group  = STATUS;
-    packet->action = LOCATION_STATUS;
-
-    return message;
+    if (message) {
+        LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = strlen(message);
+        packet->group  = STATUS;
+        packet->action = LOCATION_STATUS;
+        return message;
+    } else {
+        return NULL;
+    }
 }
 
 static void* getting_location(void* data)
@@ -571,12 +577,9 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet)
-    {
+    if (packet != NULL) {
         free(packet);
-        packet = NULL;
     }
-
     if (param)
         delete param;
 
