@@ -142,29 +142,20 @@ void msgproc_suspend(int fd, ijcommand* ijcmd)
 
 void send_default_suspend_req(void)
 {
-    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
-    if(packet == NULL){
-        return;
-    }
-    memset(packet, 0, sizeof(LXT_MESSAGE));
-
-    packet->length = 0;
-    packet->group = 5;
-    packet->action = 15;
-
-    int tmplen = HEADER_SIZE;
-    char* tmp = (char*) malloc(tmplen);
+	int group = 5;
+	int action = 15;
+    char* tmp = (char*) malloc(HEADER_SIZE);
     if (!tmp)
         return;
 
-    memcpy(tmp, packet, HEADER_SIZE);
+	memset(tmp, 0, HEADER_SIZE);
+	memcpy(tmp + 2, &group, 1);
+	memcpy(tmp + 3, &action , 1);
 
-    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SUSPEND, (const char*) tmp, tmplen);
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SUSPEND, (const char*) tmp, HEADER_SIZE);
 
     if (tmp)
         free(tmp);
-    if (packet)
-        free(packet);
 }
 
 

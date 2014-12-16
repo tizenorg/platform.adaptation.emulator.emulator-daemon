@@ -138,8 +138,11 @@ static int read_header(int fd, LXT_MESSAGE* packet)
 {
     char* readbuf = NULL;
     int readed = recv_data(fd, &readbuf, HEADER_SIZE);
-    if (readed <= 0)
+    if (readed <= 0){
+		if (readbuf)
+			free(readbuf);
         return 0;
+	}
     memcpy((void*) packet, (void*) readbuf, HEADER_SIZE);
 
     if (readbuf)
