@@ -540,11 +540,8 @@ static void* getting_sensor(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet)
-    {
-        free(packet);
-        packet = NULL;
-    }
+
+    free(packet);
 
     if (param)
         delete param;
