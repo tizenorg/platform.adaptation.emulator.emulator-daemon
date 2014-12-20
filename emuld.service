@@ -1,5 +1,7 @@
 [Unit]
 Description=Daemon for emulator
+After=system-server.service
+Requires=system-server.service
 
 [Service]
 Type=simple

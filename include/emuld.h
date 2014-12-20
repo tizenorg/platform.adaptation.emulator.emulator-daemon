@@ -28,64 +28,43 @@
  */
 
 
-#ifndef __emuld_h__
-#define __emuld_h__
+#ifndef __EMULD_H__
+#define __EMULD_H__
 
-/* header files */
-#include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/epoll.h>
-#include <arpa/inet.h>
-#include <signal.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/reboot.h>
-#include <stdarg.h>
-#include <sys/time.h>
 #include <pthread.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <assert.h>
-#include <errno.h>
-#include <sys/mount.h>
-#include <stdbool.h>
-#include <fcntl.h>
-#include <queue>
+#include <sys/epoll.h>
+
 #include <map>
 
-#include "emuld_common.h"
-#include "evdi_protocol.h"
 #include "evdi.h"
+
+#define FDTYPE_MAX			6
+
+enum
+{
+    fdtype_device     = 1,
+    fdtype_ij         = 4,
+    fdtype_max        = FDTYPE_MAX
+};
 
 /* definition */
 #define MAX_CLIENT          10000
 #define MAX_EVENTS          10000
 #define MAX_GETCNT          10
-#define DEFAULT_PORT        3577
-#define VMODEM_PORT         3578
-#define SRV_IP              "10.0.2.2"
 #define ID_SIZE             10
 #define HEADER_SIZE         4
-#define EMD_DEBUG
-#define POWEROFF_DURATION   2
 
-#define SUSPEND_UNLOCK      0
-#define SUSPEND_LOCK        1
-
-
-enum
-{
-    fdtype_server = 0,
-    fdtype_device = 1,
-    fdtype_vmodem = 2,
-    fdtype_ij     = 3,
-    fdtype_max    = 5
-};
+// Thread TID profile uses >= 5
+#define TID_SDCARD			1
+#define TID_LOCATION		2
+#define TID_HDS				3
 
 extern pthread_t tid[MAX_CLIENT + 1];
-extern struct sockaddr_in si_sensord_other;
 extern int g_fd[fdtype_max];
+extern bool exit_flag;
+extern int g_epoll_fd;
+extern struct epoll_event g_events[MAX_EVENTS];
 
 #if defined(ENABLE_DLOG_OUT)
 #  define LOG_TAG           "EMULATOR_DAEMON"
@@ -94,32 +73,10 @@ extern int g_fd[fdtype_max];
 #  define LOGERR LOGE
 #  define LOGDEBUG LOGD
 #else
-#  define LOGINFO(fmt, arg...)
-#  define LOGERR(fmt, arg...)
-#  define LOGDEBUG(fmt, arg...)
+#  define LOGINFO(fmt, arg...) printf(fmt, arg...)
+#  define LOGERR(fmt, arg...) printf(fmt, arg...)
+#  define LOGDEBUG(fmt, arg...) printf(fmt, arg...)
 #endif
-
-#define IJTYPE_TELEPHONY    "telephony"
-#define IJTYPE_SDCARD       "sdcard"
-#define IJTYPE_SUSPEND      "suspend"
-
-int parse_val(char *buff, unsigned char data, char *parsbuf);
-
-bool is_vm_connected(void);
-bool epoll_ctl_add(const int fd);
-
-void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
-void userpool_delete(int cli_fd);
-
-void udp_init(void);
-
-void systemcall(const char* param);
-
-int powerdown_by_force(void);
-// location
-void setting_location(char* databuf);
-
-#include <map>
 
 typedef unsigned short  CliSN;
 
@@ -140,11 +97,14 @@ void clipool_add(int fd, unsigned short port, const int fdtype);
 void clipool_delete(int fd);
 void close_cli(int cli_fd);
 
-Cli* find_cli(const int fd);
 bool send_to_cli(const int fd, char* data, const int len);
 bool send_to_all_ij(char* data, const int len);
 bool is_ij_exist();
 void stop_listen(void);
+
+bool epoll_ctl_add(const int fd);
+void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
+void userpool_delete(int cli_fd);
 
 struct fd_info
 {
@@ -152,6 +112,16 @@ struct fd_info
     int fd;
     int fdtype;
 };
+
+struct LXT_MESSAGE
+{
+    unsigned short length;
+    unsigned char group;
+    unsigned char action;
+    void *data;
+};
+
+typedef struct LXT_MESSAGE LXT_MESSAGE;
 
 struct ijcommand
 {
@@ -175,16 +145,56 @@ struct ijcommand
     LXT_MESSAGE msg;
 };
 
-void process_evdi_command(ijcommand* ijcmd);
+struct _auto_mutex
+{
+    _auto_mutex(pthread_mutex_t* t)
+    {
+        _mutex = t;
+        pthread_mutex_lock(_mutex);
+
+    }
+    ~_auto_mutex()
+    {
+        pthread_mutex_unlock(_mutex);
+    }
+
+    pthread_mutex_t* _mutex;
+};
+
+struct setting_device_param
+{
+    setting_device_param() : get_status_sockfd(-1), ActionID(0)
+    {
+        memset(type_cmd, 0, ID_SIZE);
+    }
+    int get_status_sockfd;
+    unsigned char ActionID;
+    char type_cmd[ID_SIZE];
+};
+
 bool read_ijcmd(const int fd, ijcommand* ijcmd);
+int recv_data(int event_fd, char** r_databuf, int size);
+void recv_from_evdi(evdi_fd fd);
+bool accept_proc(const int server_fd);
 
-void* setting_device(void* data);
+void send_default_suspend_req(void);
+void systemcall(const char* param);
+int parse_val(char *buff, unsigned char data, char *parsbuf);
 
-// msg proc
-bool msgproc_telephony(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_sensor(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_location(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_system(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
-bool msgproc_sdcard(const int sockfd, ijcommand* ijcmd, const bool is_evdi);
+void msgproc_suspend(int fd, ijcommand* ijcmd);
+void msgproc_system(int fd, ijcommand* ijcmd);
+void msgproc_hds(int fd, ijcommand* ijcmd);
+void msgproc_location(int fd, ijcommand* ijcmd);
+void msgproc_sdcard(int fd, ijcommand* ijcmd);
+void* exec_cmd_thread(void *args);
+void msgproc_cmd(int fd, ijcommand* ijcmd);
 
-#endif //__emuld_h__
+/*
+ * For the multi-profile
+ */
+void process_evdi_command(ijcommand* ijcmd);
+bool server_process(void);
+void init_profile(void);
+void exit_profile(void);
+
+#endif

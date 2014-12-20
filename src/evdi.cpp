@@ -9,7 +9,7 @@
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,13 +21,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
  */
 
-#include "evdi.h"
+#include <unistd.h>
+#include <fcntl.h>
+
 #include "emuld.h"
 
 #define DEVICE_NODE_PATH    "/dev/evdi0"
@@ -41,9 +43,8 @@ evdi_fd open_device(void)
     fd = open(DEVICE_NODE_PATH, O_RDWR); //O_CREAT|O_WRONLY|O_TRUNC.
     LOGDEBUG("evdi open fd is %d", fd);
 
-    if (fd <= 0) {
+    if (fd < 0) {
         LOGERR("open %s fail", DEVICE_NODE_PATH);
-        return fd;
     }
 
     return fd;
@@ -74,7 +75,7 @@ bool init_device(evdi_fd* ret_fd)
     *ret_fd = -1;
 
     fd = open_device();
-    if (fd <= 0)
+    if (fd < 0)
         return false;
 
     if (!set_nonblocking(fd))
@@ -120,7 +121,7 @@ bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int
 
     char tmp[ID_SIZE];
     memset(tmp, 0, ID_SIZE);
-    strncpy(tmp, cat, 10);
+    strncpy(tmp, cat, ID_SIZE - 1);
 
     // TODO: need to make fragmented transmission
     if (len + ID_SIZE > __MAX_BUF_SIZE) {

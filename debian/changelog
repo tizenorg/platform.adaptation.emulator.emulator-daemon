@@ -1,0 +1,126 @@
+emuld (0.2.20) unstable; urgency=low
+
+  * add checking routine 'recv' function's return value
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.20
+
+ -- Jihye kim <jihye1128.kim@samsung.com> Mon, 04 Nov 2012 20:00:18 +0900
+
+emuld (0.2.18) unstable; urgency=low
+
+  * fixed hang up when sending packet vmodem to eventinjector
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.18
+
+ -- Sungmin ha <sungmin82.ha@samsung.com> Wed, 12 Sep 2012 20:00:18 +0900
+
+emuld (0.2.17) unstable; urgency=low
+
+  * modified for scm build
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.17
+
+ -- Sungmin ha <sungmin82.ha@samsung.com> Thu, 09 Aug 2012 21:00:18 +0900
+
+emuld (0.2.15) unstable; urgency=low
+
+  * Permission of sdcard partition changed from 755 to 777.
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.15
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Wed, 11 Jul 2012 19:38:44 +0900
+
+emuld (0.2.14) unstable; urgency=low
+
+  * modified for checking resource busy when umount sdcard
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.14
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Thu, 05 Jul 2012 21:03:00 +0900
+
+emuld (0.2.12) unstable; urgency=low
+
+  * modified for checking return value of fopen
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.12
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Fri, 22 Jun 2012 18:23:00 +0900
+
+emuld (0.2.10) unstable; urgency=low
+
+  * deleted process kill when umount
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.10
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Thu, 15 Jun 2012 16:16:00 +0900
+
+emuld (0.2.9) unstable; urgency=low
+
+  * modified vconf key path for sdcard supporting
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.9
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Thu, 14 Jun 2012 16:04:00 +0900
+
+emuld (0.2.8) unstable; urgency=low
+
+  * added sdcard mount/umount handling
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.8
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Tue, 29 May 2012 18:47:00 +0900
+
+emuld (0.2.7) unstable; urgency=low
+
+  * added exception handling
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.7
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Mon, 14 May 2012 18:10:00 +0900
+
+emuld (0.2.6) unstable; urgency=low
+
+  * modified how to get host ip
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.6
+
+ -- Sungmin ha <sungmin82.ha@samsung.com>  Fri, 11 May 2012 18:05:00 +0900
+
+emuld (0.2.5) unstable; urgency=low
+
+  * add setting location replay and modify nfc.
+  * need sinchronization with event injector
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.5
+
+ -- Jihye kim <jihye1128.kim@samsung.com>  Thu, 10 May 2012 11:30:00 +0900
+
+emuld (0.2.4) unstable; urgency=low
+
+  * back to the 0.2.2
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.4
+
+ -- Jihye kim <jihye1128.kim@samsung.com>  Thu, 4 May 2012 11:50:00 +0900
+
+emuld (0.2.3) unstable; urgency=low
+
+  * Add making 'sdkMsg' file during post install.
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.3
+
+ -- Jihye kim <jihye1128.kim@samsung.com>  Wen, 02 May 2012 14:00:00 +0900
+
+emuld (0.2.2) unstable; urgency=low
+
+  * Update changelog version.
+  * Git: slp/pkgs/e/emulator-daemon
+  * Tag: emuld_0.2.2
+
+ -- Kitae kim <kt920.kim@samsung.com>  Thu, 27 Mar 2012 20:00:00 +0900
+
+emuld (0.2.1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Sungmin Ha <sungmin82.ha@samsung.com>  Fri, 18 Nov 2011 09:29:52 +0900
