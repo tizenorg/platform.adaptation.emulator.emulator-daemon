@@ -29,6 +29,8 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 
@@ -138,8 +140,11 @@ static int read_header(int fd, LXT_MESSAGE* packet)
 {
     char* readbuf = NULL;
     int readed = recv_data(fd, &readbuf, HEADER_SIZE);
-    if (readed <= 0)
+    if (readed <= 0){
+		if (readbuf)
+			free(readbuf);
         return 0;
+	}
     memcpy((void*) packet, (void*) readbuf, HEADER_SIZE);
 
     if (readbuf)
@@ -217,7 +222,7 @@ void recv_from_evdi(evdi_fd fd)
         }
     }
 
-    LOGINFO("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
+    LOGDEBUG("total readed  = %d, read count = %d, index = %d, use = %d, msg = %s",
             readed, _msg.count, _msg.index, _msg.use, _msg.buf);
 
     g_synbuf.reset_buf();
@@ -261,6 +266,17 @@ void recv_from_evdi(evdi_fd fd)
     process_evdi_command(&ijcmd);
 }
 
+void writelog(const char* fmt, ...)
+{
+    FILE* logfile = fopen("/tmp/emuld.log", "a+");
+	va_list args;
+	va_start(args, fmt);
+	vfprintf(logfile, fmt, args);
+	vfprintf(logfile, "\n", NULL);
+	va_end(args);
+	fclose(logfile);
+}
+
 int main( int argc , char *argv[])
 {
     init_fd();
@@ -280,6 +296,8 @@ int main( int argc , char *argv[])
 
 	init_profile();
 
+	send_emuld_connection();
+
     send_default_suspend_req();
 
     while(!exit_flag)
@@ -291,7 +309,7 @@ int main( int argc , char *argv[])
 
     stop_listen();
 
-    LOGINFO("emuld exit");
+	LOGINFO("emuld exit");
 
     return 0;
 }

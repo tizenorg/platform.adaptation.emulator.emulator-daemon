@@ -540,11 +540,8 @@ static void* getting_sensor(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet)
-    {
-        free(packet);
-        packet = NULL;
-    }
+
+    free(packet);
 
     if (param)
         delete param;
@@ -552,7 +549,7 @@ static void* getting_sensor(void* data)
     pthread_exit((void *) 0);
 }
 
-void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
+void msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
@@ -564,7 +561,6 @@ void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
 
         memset(param, 0, sizeof(*param));
 
-        param->get_status_sockfd = sockfd;
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
@@ -578,7 +574,7 @@ void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
     else
     {
         if (ijcmd->data != NULL && strlen(ijcmd->data) > 0) {
-            getting_sensor(ijcmd->data);
+            setting_sensor(ijcmd->data);
         }
     }
 }

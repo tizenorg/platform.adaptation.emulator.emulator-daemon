@@ -43,9 +43,8 @@ evdi_fd open_device(void)
     fd = open(DEVICE_NODE_PATH, O_RDWR); //O_CREAT|O_WRONLY|O_TRUNC.
     LOGDEBUG("evdi open fd is %d", fd);
 
-    if (fd <= 0) {
+    if (fd < 0) {
         LOGERR("open %s fail", DEVICE_NODE_PATH);
-        return fd;
     }
 
     return fd;
@@ -76,7 +75,7 @@ bool init_device(evdi_fd* ret_fd)
     *ret_fd = -1;
 
     fd = open_device();
-    if (fd <= 0)
+    if (fd < 0)
         return false;
 
     if (!set_nonblocking(fd))
@@ -122,7 +121,7 @@ bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int
 
     char tmp[ID_SIZE];
     memset(tmp, 0, ID_SIZE);
-    strncpy(tmp, cat, 10);
+    strncpy(tmp, cat, ID_SIZE - 1);
 
     // TODO: need to make fragmented transmission
     if (len + ID_SIZE > __MAX_BUF_SIZE) {

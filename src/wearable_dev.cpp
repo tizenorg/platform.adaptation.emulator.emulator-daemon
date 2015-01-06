@@ -267,7 +267,7 @@ static void device_parser(char *buffer)
     }
 }
 
-void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
+void msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
@@ -278,4 +278,3 @@ void msgproc_sensor(const int sockfd, ijcommand* ijcmd)
         }
     }
 }
-

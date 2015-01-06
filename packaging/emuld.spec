@@ -1,11 +1,10 @@
 Name: emuld
-Version: 0.7.5
+Version: 0.8.4
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
-Source1001: packaging/emuld_wearable.manifest
 
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
@@ -54,7 +53,7 @@ chmod 770 %{_prefix}/bin/emuld
 
 %files
 %defattr(-,root,root,-)
-%manifest packaging/emuld_wearable.manifest
+%manifest emuld.manifest
 %{_prefix}/bin/emuld
 /usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service

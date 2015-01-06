@@ -38,31 +38,37 @@
 
 void process_evdi_command(ijcommand* ijcmd)
 {
-    int fd = -1;
-
     if (strncmp(ijcmd->cmd, "sensor", 6) == 0)
     {
-        msgproc_sensor(fd, ijcmd);
+        msgproc_sensor(ijcmd);
     }
-    else if (strncmp(ijcmd->cmd, "suspend", 7) == 0)
+    else if (strcmp(ijcmd->cmd, IJTYPE_SUSPEND) == 0)
     {
-        msgproc_suspend(fd, ijcmd);
+        msgproc_suspend(ijcmd);
     }
-    else if (strncmp(ijcmd->cmd, "location", 8) == 0)
+    else if (strcmp(ijcmd->cmd, "location") == 0)
     {
-        msgproc_location(fd, ijcmd);
+        msgproc_location(ijcmd);
     }
-    else if (strncmp(ijcmd->cmd, "hds", 3) == 0)
+    else if (strcmp(ijcmd->cmd, "hds") == 0)
     {
-        msgproc_hds(fd, ijcmd);
+        msgproc_hds(ijcmd);
     }
-    else if (strncmp(ijcmd->cmd, "system", 6) == 0)
+    else if (strcmp(ijcmd->cmd, "system") == 0)
     {
-        msgproc_system(fd, ijcmd);
+        msgproc_system(ijcmd);
     }
-    else if (strncmp(ijcmd->cmd, "sdcard", 6) == 0)
+    else if (strcmp(ijcmd->cmd, IJTYPE_PACKAGE) == 0)
     {
-        msgproc_sdcard(fd, ijcmd);
+        msgproc_package(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, "sdcard") == 0)
+    {
+        msgproc_sdcard(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, "cmd") == 0)
+    {
+        msgproc_cmd(ijcmd);
     }
     else
     {

@@ -32,6 +32,7 @@
 #define __EMULD_H__
 
 #include <stdlib.h>
+#include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
 
@@ -66,16 +67,18 @@ extern bool exit_flag;
 extern int g_epoll_fd;
 extern struct epoll_event g_events[MAX_EVENTS];
 
+void writelog(const char* fmt, ...);
+
 #if defined(ENABLE_DLOG_OUT)
-#  define LOG_TAG           "EMULATOR_DAEMON"
+#  define LOG_TAG           "EMULD"
 #  include <dlog/dlog.h>
 #  define LOGINFO LOGI
 #  define LOGERR LOGE
 #  define LOGDEBUG LOGD
 #else
-#  define LOGINFO(fmt, arg...) printf(fmt, arg...)
-#  define LOGERR(fmt, arg...) printf(fmt, arg...)
-#  define LOGDEBUG(fmt, arg...) printf(fmt, arg...)
+#  define LOGINFO(fmt, ...) { writelog(fmt, ##__VA_ARGS__); }
+#  define LOGERR LOGINFO
+#  define LOGDEBUG LOGINFO
 #endif
 
 typedef unsigned short  CliSN;
@@ -163,11 +166,10 @@ struct _auto_mutex
 
 struct setting_device_param
 {
-    setting_device_param() : get_status_sockfd(-1), ActionID(0)
+    setting_device_param() : ActionID(0)
     {
         memset(type_cmd, 0, ID_SIZE);
     }
-    int get_status_sockfd;
     unsigned char ActionID;
     char type_cmd[ID_SIZE];
 };
@@ -177,15 +179,24 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
 
+void send_to_ecs(const char* cat, int group, int action, char* data);
+void send_emuld_connection(void);
 void send_default_suspend_req(void);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
-void msgproc_suspend(int fd, ijcommand* ijcmd);
-void msgproc_system(int fd, ijcommand* ijcmd);
-void msgproc_hds(int fd, ijcommand* ijcmd);
-void msgproc_location(int fd, ijcommand* ijcmd);
-void msgproc_sdcard(int fd, ijcommand* ijcmd);
+#define IJTYPE_SUSPEND      "suspend"
+#define IJTYPE_GUEST        "guest"
+#define IJTYPE_PACKAGE      "package"
+
+void msgproc_suspend(ijcommand* ijcmd);
+void msgproc_system(ijcommand* ijcmd);
+void msgproc_package(ijcommand* ijcmd);
+void msgproc_hds(ijcommand* ijcmd);
+void msgproc_location(ijcommand* ijcmd);
+void msgproc_sdcard(ijcommand* ijcmd);
+void* exec_cmd_thread(void *args);
+void msgproc_cmd(ijcommand* ijcmd);
 
 /*
  * For the multi-profile

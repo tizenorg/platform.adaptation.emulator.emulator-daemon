@@ -30,6 +30,7 @@
 #ifndef __WEARABLE_H__
 #define __WEARABLE_H__
 
-void msgproc_sensor(const int sockfd, ijcommand* ijcmd);
+#define TID_PEDOMETER		5
+void msgproc_sensor(ijcommand* ijcmd);
 
 #endif

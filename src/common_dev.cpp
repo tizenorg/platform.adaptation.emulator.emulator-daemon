@@ -46,6 +46,8 @@
 #include <unistd.h>
 #include "emuld.h"
 
+static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
+
 // SDCard
 #define IJTYPE_SDCARD       "sdcard"
 
@@ -58,20 +60,12 @@ char SDpath[256];
 #define STATUS              15
 #define LOCATION_STATUS     120
 char command[512];
-char latitude[128];
-char longitude[128];
 
 /*
  * SD Card functions
  */
 
-struct mount_param
-{
-    mount_param(int _fd) : fd(_fd) {}
-    int fd;
-};
-
-char* get_mount_info() {
+static char* get_mount_info() {
     struct mntent *ent;
     FILE *aFile;
 
@@ -125,8 +119,6 @@ int is_mounted()
 
 void* mount_sdcard(void* data)
 {
-    mount_param* param = (mount_param*) data;
-
     int ret = -1, i = 0;
     struct stat buf;
     char file_name[128], command[256];
@@ -202,15 +194,10 @@ void* mount_sdcard(void* data)
         packet = NULL;
     }
 
-    if (param)
-    {
-        delete param;
-        param = NULL;
-    }
     pthread_exit((void *) 0);
 }
 
-int umount_sdcard(const int fd)
+static int umount_sdcard(void)
 {
     int ret = -1, i = 0;
     char file_name[128];
@@ -269,7 +256,7 @@ int umount_sdcard(const int fd)
 }
 
 
-void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
+void msgproc_sdcard(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sdcard");
 
@@ -291,21 +278,17 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
     {
         case 0:                         // umount
             {
-                mount_status = umount_sdcard(sockfd);
+                mount_status = umount_sdcard();
             }
             break;
         case 1:                         // mount
             {
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
-                strcpy(SDpath, ret);
+                strncpy(SDpath, ret, strlen(ret));
                 LOGDEBUG("sdcard path is %s", SDpath);
 
-                mount_param* param = new mount_param(sockfd);
-                if (!param)
-                    break;
-
-                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, (void*) param) != 0)
+                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, NULL) != 0)
                     LOGERR("mount sdcard pthread create fail!");
             }
 
@@ -378,13 +361,16 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
                                     memcpy(tmp + HEADER_SIZE + mntData->length, mountinfo, mountinfo_size);
                                     mntData->length += mountinfo_size;
                                     memcpy(tmp, mntData, HEADER_SIZE);
-                                    delete mountinfo;
-                                    mountinfo = NULL;
+                                    free(mountinfo);
                                 }
 
                                 ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
                                 free(tmp);
+                            } else {
+                                if (mountinfo) {
+                                    free(mountinfo);
+                                }
                             }
                         }
                         break;
@@ -400,6 +386,37 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
     }
 }
 
+void* exec_cmd_thread(void *args)
+{
+    char *command = (char*)args;
+
+    systemcall(command);
+    LOGDEBUG("executed cmd: %s", command);
+    free(command);
+
+    pthread_exit(NULL);
+}
+
+void msgproc_cmd(ijcommand* ijcmd)
+{
+    _auto_mutex _(&mutex_cmd);
+    pthread_t cmd_thread_id;
+    char *cmd = (char*) malloc(ijcmd->msg.length + 1);
+
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
+    strncpy(cmd, ijcmd->data, ijcmd->msg.length);
+    LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
+
+    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0)
+    {
+        LOGERR("cmd pthread create fail!");
+    }
+}
 
 /*
  * Location function
@@ -446,6 +463,8 @@ static char* get_location_status(void* p)
     } else if (mode == 2) { // MANUAL MODE
         double latitude;
         double logitude;
+        double altitude;
+        double accuracy;
         ret = vconf_get_dbl("db/location/replay/ManualLatitude", &latitude);
         if (ret != 0) {
             return 0;
@@ -454,9 +473,18 @@ static char* get_location_status(void* p)
         if (ret != 0) {
             return 0;
         }
+        ret = vconf_get_dbl("db/location/replay/ManualAltitude", &altitude);
+        if (ret != 0) {
+            return 0;
+        }
+         ret = vconf_get_dbl("db/location/replay/ManualHAccuracy", &accuracy);
+        if (ret != 0) {
+            return 0;
+        }
+
         message = (char*)malloc(128);
         memset(message, 0, 128);
-        ret = sprintf(message, "%d,%f,%f", mode, latitude, logitude);
+        ret = sprintf(message, "%d,%f,%f,%f,%f", mode, latitude, logitude, altitude, accuracy);
         if (ret < 0) {
             free(message);
             message = 0;
@@ -464,13 +492,16 @@ static char* get_location_status(void* p)
         }
     }
 
-    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
-    memset(packet, 0, sizeof(LXT_MESSAGE));
-    packet->length = strlen(message);
-    packet->group  = STATUS;
-    packet->action = LOCATION_STATUS;
-
-    return message;
+    if (message) {
+        LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = strlen(message);
+        packet->group  = STATUS;
+        packet->action = LOCATION_STATUS;
+        return message;
+    } else {
+        return NULL;
+    }
 }
 
 static void* getting_location(void* data)
@@ -529,12 +560,9 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet)
-    {
+    if (packet != NULL) {
         free(packet);
-        packet = NULL;
     }
-
     if (param)
         delete param;
 
@@ -576,28 +604,35 @@ void setting_location(char* databuf)
             LOGDEBUG("%s", command);
             systemcall(command);
         } else if(mode == 2) {
-            memset(latitude,  0, 128);
-            memset(longitude, 0, 128);
-            char* t = strchr(s+1, ',');
-            *t = '\0';
-            strcpy(latitude, s+1);
-            strcpy(longitude, t+1);
-            //strcpy(longitude, s+1);
-            //strcpy(latitude, databuf);
+            char* ptr = strtok(s+1, ",");
+
             // Latitude
-            sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", latitude);
-            LOGDEBUG("%s", command);
+            sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", ptr);
+            LOGINFO("%s", command);
             systemcall(command);
 
             // Longitude
-            sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", longitude);
-            LOGDEBUG("%s", command);
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+
+            // Altitude
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualAltitude %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+
+            // accuracy
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualHAccuracy %s -f", ptr);
+            LOGINFO("%s", command);
             systemcall(command);
         }
     }
 }
 
-void msgproc_location(const int sockfd, ijcommand* ijcmd)
+void msgproc_location(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_location");
     if (ijcmd->msg.group == STATUS)
@@ -606,7 +641,6 @@ void msgproc_location(const int sockfd, ijcommand* ijcmd)
         if (!param)
             return;
 
-        param->get_status_sockfd = sockfd;
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
@@ -717,7 +751,7 @@ int umount_hds(void)
     return 0;
 }
 
-void msgproc_hds(const int sockfd, ijcommand* ijcmd)
+void msgproc_hds(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_hds");
 

@@ -32,6 +32,6 @@
 
 #define TID_SENSOR			5
 
-void msgproc_sensor(const int sockfd, ijcommand* ijcmd);
+void msgproc_sensor(ijcommand* ijcmd);
 
 #endif
