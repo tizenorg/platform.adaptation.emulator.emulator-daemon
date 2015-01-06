@@ -141,10 +141,10 @@ static int read_header(int fd, LXT_MESSAGE* packet)
     char* readbuf = NULL;
     int readed = recv_data(fd, &readbuf, HEADER_SIZE);
     if (readed <= 0){
-		if (readbuf)
-			free(readbuf);
+        if (readbuf)
+            free(readbuf);
         return 0;
-	}
+    }
     memcpy((void*) packet, (void*) readbuf, HEADER_SIZE);
 
     if (readbuf)
@@ -197,7 +197,7 @@ void recv_from_evdi(evdi_fd fd)
 {
     LOGDEBUG("recv_from_evdi");
     int readed;
-	synbuf g_synbuf;
+    synbuf g_synbuf;
 
     struct msg_info _msg;
     int to_read = sizeof(struct msg_info);
@@ -243,7 +243,7 @@ void recv_from_evdi(evdi_fd fd)
         return;
 
     LOGDEBUG("HEADER : action = %d, group = %d, length = %d",
-			ijcmd.msg.action, ijcmd.msg.group, ijcmd.msg.length);
+            ijcmd.msg.action, ijcmd.msg.group, ijcmd.msg.length);
 
     if (ijcmd.msg.length > 0)
     {
@@ -269,12 +269,12 @@ void recv_from_evdi(evdi_fd fd)
 void writelog(const char* fmt, ...)
 {
     FILE* logfile = fopen("/tmp/emuld.log", "a+");
-	va_list args;
-	va_start(args, fmt);
-	vfprintf(logfile, fmt, args);
-	vfprintf(logfile, "\n", NULL);
-	va_end(args);
-	fclose(logfile);
+    va_list args;
+    va_start(args, fmt);
+    vfprintf(logfile, fmt, args);
+    vfprintf(logfile, "\n", NULL);
+    va_end(args);
+    fclose(logfile);
 }
 
 int main( int argc , char *argv[])
@@ -294,9 +294,9 @@ int main( int argc , char *argv[])
 
     LOGINFO("[START] epoll & device init success");
 
-	init_profile();
+    init_profile();
 
-	send_emuld_connection();
+    send_emuld_connection();
 
     send_default_suspend_req();
 
@@ -305,11 +305,11 @@ int main( int argc , char *argv[])
         exit_flag = server_process();
     }
 
-	exit_profile();
+    exit_profile();
 
     stop_listen();
 
-	LOGINFO("emuld exit");
+    LOGINFO("emuld exit");
 
     return 0;
 }

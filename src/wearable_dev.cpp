@@ -75,11 +75,11 @@ static void dbus_send_power_supply(int capacity, int charger)
     memset(option, 0, 128);
 
     if (capacity == 100 && charger == 1) {
-		memcpy(state, FULL, 4);
+        memcpy(state, FULL, 4);
     } else if (charger == 1) {
-		memcpy(state, CHARGING, 8);
+        memcpy(state, CHARGING, 8);
     } else {
-		memcpy(state, DISCHARGING, 11);
+        memcpy(state, DISCHARGING, 11);
     }
 
     sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
@@ -102,7 +102,7 @@ static void dbus_send_usb(int on)
 
 static void dbus_send_earjack(int on)
 {
-	const char* earjack_device = DEVICE_CHANGED;
+    const char* earjack_device = DEVICE_CHANGED;
     char option [128];
     memset(option, 0, 128);
 
@@ -202,7 +202,7 @@ int parse_earjack_data(int len, char *buffer)
     fprintf(fd, "%d", x);
     fclose(fd);
 
-	dbus_send_earjack(x);
+    dbus_send_earjack(x);
     return 0;
 }
 

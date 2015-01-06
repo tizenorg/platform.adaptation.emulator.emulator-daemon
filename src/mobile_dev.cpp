@@ -120,11 +120,11 @@ static void dbus_send_power_supply(int capacity, int charger)
     memset(option, 0, 128);
 
     if (capacity == 100 && charger == 1) {
-		memcpy(state, FULL, 4);
+        memcpy(state, FULL, 4);
     } else if (charger == 1) {
-		memcpy(state, CHARGING, 8);
+        memcpy(state, CHARGING, 8);
     } else {
-		memcpy(state, DISCHARGING, 11);
+        memcpy(state, DISCHARGING, 11);
     }
 
     sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
@@ -148,7 +148,7 @@ static void dbus_send_usb(int on)
 
 static void dbus_send_earjack(int on)
 {
-	const char* earjack_device = DEVICE_CHANGED;
+    const char* earjack_device = DEVICE_CHANGED;
     char option [128];
     memset(option, 0, 128);
 
@@ -337,9 +337,9 @@ int parse_earjack_data(int len, char *buffer)
     fclose(fd);
 
     // because time based polling
-	//FIXME: change to dbus
+    //FIXME: change to dbus
     //system_cmd("/usr/bin/sys_event device_earjack_chgdet");
-	dbus_send_earjack(x);
+    dbus_send_earjack(x);
     return 0;
 }
 
@@ -509,30 +509,30 @@ static void* getting_sensor(void* data)
         break;
     }
 
-	if (msg == 0)
-	{
-		LOGDEBUG("send error message to injector");
-		memset(packet, 0, sizeof(LXT_MESSAGE));
-		packet->length = 0;
-		packet->group = STATUS;
-		packet->action = param->ActionID;
-	}
-	else
-	{
-		LOGDEBUG("send data to injector");
-	}
+    if (msg == 0)
+    {
+        LOGDEBUG("send error message to injector");
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = 0;
+        packet->group = STATUS;
+        packet->action = param->ActionID;
+    }
+    else
+    {
+        LOGDEBUG("send data to injector");
+    }
 
-	const int tmplen = HEADER_SIZE + packet->length;
-	char* tmp = (char*) malloc(tmplen);
-	if (tmp)
-	{
-		memcpy(tmp, packet, HEADER_SIZE);
-		if (packet->length > 0)
-			memcpy(tmp + HEADER_SIZE, msg, packet->length);
+    const int tmplen = HEADER_SIZE + packet->length;
+    char* tmp = (char*) malloc(tmplen);
+    if (tmp)
+    {
+        memcpy(tmp, packet, HEADER_SIZE);
+        if (packet->length > 0)
+            memcpy(tmp + HEADER_SIZE, msg, packet->length);
 
-		ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
+        ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
 
-		free(tmp);
+        free(tmp);
     }
 
     if(msg != 0)

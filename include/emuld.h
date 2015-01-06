@@ -9,7 +9,7 @@
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,7 +21,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
@@ -40,7 +40,7 @@
 
 #include "evdi.h"
 
-#define FDTYPE_MAX			6
+#define FDTYPE_MAX          6
 
 enum
 {
@@ -57,9 +57,9 @@ enum
 #define HEADER_SIZE         4
 
 // Thread TID profile uses >= 5
-#define TID_SDCARD			1
-#define TID_LOCATION		2
-#define TID_HDS				3
+#define TID_SDCARD          1
+#define TID_LOCATION        2
+#define TID_HDS             3
 
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
