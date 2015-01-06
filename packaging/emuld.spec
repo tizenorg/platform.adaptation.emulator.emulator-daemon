@@ -5,6 +5,7 @@ Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
+ExclusiveArch: %{ix86}
 
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
