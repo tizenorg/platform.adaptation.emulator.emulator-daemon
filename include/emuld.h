@@ -57,9 +57,10 @@ enum
 #define HEADER_SIZE         4
 
 // Thread TID profile uses >= 5
-#define TID_SDCARD          1
-#define TID_LOCATION        2
-#define TID_HDS             3
+#define TID_BOOT            1
+#define TID_SDCARD          2
+#define TID_LOCATION        3
+#define TID_HDS             4
 
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
@@ -182,12 +183,14 @@ bool accept_proc(const int server_fd);
 void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
 void send_default_suspend_req(void);
+void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
 #define IJTYPE_SUSPEND      "suspend"
 #define IJTYPE_GUEST        "guest"
 #define IJTYPE_PACKAGE      "package"
+#define IJTYPE_BOOT         "boot"
 
 void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
