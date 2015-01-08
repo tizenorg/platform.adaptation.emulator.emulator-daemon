@@ -292,6 +292,12 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
+    if (pthread_create(&tid[TID_BOOT], NULL, dbus_booting_done_check, NULL) != 0)
+    {
+        LOGERR("boot noti pthread create fail!");
+        return -1;
+    }
+
     LOGINFO("[START] epoll & device init success");
 
     init_profile();

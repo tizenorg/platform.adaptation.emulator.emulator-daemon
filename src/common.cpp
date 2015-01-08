@@ -29,11 +29,15 @@
 
 #include <sys/time.h>
 #include <sys/reboot.h>
+#include <sys/ioctl.h>
 #include <stdio.h>
 #include <unistd.h>
 
 #include "emuld.h"
 //#include "deviced/dd-display.h"
+
+#include <E_DBus.h>
+#include <Ecore.h>
 
 #define PMAPI_RETRY_COUNT   3
 #define POWEROFF_DURATION   2
@@ -161,9 +165,7 @@ void send_to_ecs(const char* cat, int group, int action, char* data)
     if (!tmp)
         return;
 
-    if (data != NULL) {
-        memcpy(tmp, &datalen, 2);
-    }
+    memcpy(tmp, &datalen, 2);
     memcpy(tmp + 2, &group, 1);
     memcpy(tmp + 3, &action, 1);
     if (data != NULL) {
@@ -372,5 +374,76 @@ void msgproc_package(ijcommand* ijcmd)
     if (ret < 0) {
         LOGERR("validate package pthread join is failed.");
     }
+}
+
+enum ioctl_cmd {
+    IOCTL_CMD_BOOT_DONE,
+};
+
+void send_to_kernel(void)
+{
+    if(ioctl(g_fd[fdtype_device], IOCTL_CMD_BOOT_DONE, NULL) == -1) {
+        LOGERR("Failed to send ioctl to kernel");
+        return;
+    }
+    LOGINFO("[DBUS] sent booting done to kernel");
+}
+
+#define DBUS_PATH_BOOT_DONE  "/Org/Tizen/System/DeviceD/Core"
+#define DBUS_IFACE_BOOT_DONE "org.tizen.system.deviced.core"
+#define BOOT_DONE_SIGNAL     "BootingDone"
+
+static void boot_done(void *data, DBusMessage *msg)
+{
+    if (dbus_message_is_signal(msg,
+                DBUS_IFACE_BOOT_DONE,
+                BOOT_DONE_SIGNAL) != 0) {
+        LOGINFO("[DBUS] sending booting done to ecs.");
+        send_to_ecs(IJTYPE_BOOT, 0, 0, NULL);
+        LOGINFO("[DBUS] sending booting done to kernel for log.");
+        send_to_kernel();
+    }
+}
+
+void* dbus_booting_done_check(void* data)
+{
+    E_DBus_Connection *connection;
+    E_DBus_Signal_Handler *boot_handler = NULL;
+
+    ecore_init();
+    e_dbus_init();
+
+    connection = e_dbus_bus_get(DBUS_BUS_SYSTEM);
+    if (!connection) {
+        LOGERR("[DBUS] Failed to get dbus bus.");
+        e_dbus_shutdown();
+        ecore_shutdown();
+        return NULL;
+    }
+
+    boot_handler = e_dbus_signal_handler_add(
+            connection,
+            NULL,
+            DBUS_PATH_BOOT_DONE,
+            DBUS_IFACE_BOOT_DONE,
+            BOOT_DONE_SIGNAL,
+            boot_done,
+            NULL);
+    if (!boot_handler) {
+        LOGERR("[DBUS] Failed to register handler");
+        e_dbus_signal_handler_del(connection, boot_handler);
+        e_dbus_shutdown();
+        ecore_shutdown();
+        return NULL;
+    }
+    LOGINFO("[DBUS] signal handler is added.");
+
+    ecore_main_loop_begin();
+
+    e_dbus_signal_handler_del(connection, boot_handler);
+    e_dbus_shutdown();
+    ecore_shutdown();
+
+    return NULL;
 }
 
