@@ -1,10 +1,11 @@
 Name: emuld
-Version: 0.8.3
+Version: 0.8.4
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
 Source0: %{name}-%{version}.tar.gz
 Group: SDK/Other
+ExclusiveArch: %{ix86}
 
 BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
