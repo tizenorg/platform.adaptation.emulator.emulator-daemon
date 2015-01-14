@@ -7,6 +7,7 @@ SET(EXEC_PREFIX "\${prefix}")
 SET(INCLUDEDIR "\${prefix}/include")
 SET(VERSION 1.1)
 
+SET(dependents "capi-base-common network capi-network-connection glib-2.0")
 set(PROJECT_MAJOR_VERSION "1")
 set(PROJECT_MINOR_VERSION "1")
 set(PROJECT_RELEASE_VERSION "0")
@@ -21,10 +22,11 @@ IF("$ENV{CFLAGS}" MATCHES "-DWEARABLE")
 ENDIF()
 
 SET(SRCS
-	src/emuld.cpp
-	src/evdi.cpp
-	src/client.cpp
-	src/common.cpp
+    src/emuld.cpp
+    src/net.cpp
+    src/evdi.cpp
+    src/client.cpp
+    src/common.cpp
 )
 
 IF(USE_D_MOBILE)
@@ -48,11 +50,14 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 INCLUDE(FindPkgConfig)
 
 SET(PKG_MODULE
-	vconf
-	deviced
-	dlog
-	ecore
-	edbus
+    vconf
+    deviced
+    dlog
+    glib-2.0
+    gobject-2.0
+    capi-network-connection
+    ecore
+    edbus
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})
@@ -67,6 +72,6 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CFLAGS}")
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SRCS})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} -lpthread)
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} -lpthread ${LIBS})
 
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)
