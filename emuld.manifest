@@ -3,7 +3,13 @@
 		<domain name="emuld"/>
 		<request>
 			<smack request="deviced::display" type="rw" />
+			<smack request="dbus" type="rwx" />
+			<smack request="system::use_internet" type="rw" />
 		</request>
+		<permit>
+			<smack permit="dbus" type="rwx" />
+			<smack permit="system::use_internet" type="rw" />
+		</permit>
 	</define>
 	<request>
 		<domain name="emuld" />

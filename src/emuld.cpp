@@ -279,6 +279,8 @@ void writelog(const char* fmt, ...)
 
 int main( int argc , char *argv[])
 {
+	int conn_ret = -1;
+
     init_fd();
 
     if (!epoll_init())
@@ -299,6 +301,7 @@ int main( int argc , char *argv[])
     }
 
     LOGINFO("[START] epoll & device init success");
+	conn_ret = register_connection();
 
     init_profile();
 
@@ -314,6 +317,11 @@ int main( int argc , char *argv[])
     exit_profile();
 
     stop_listen();
+	if (conn_ret == 1)
+	{
+		LOGINFO("destroy connection");
+		destroy_connection();
+	}
 
     LOGINFO("emuld exit");
 
