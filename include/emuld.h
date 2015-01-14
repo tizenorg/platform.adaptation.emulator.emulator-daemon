@@ -35,7 +35,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
-
+#include <glib.h>
 #include <map>
 
 #include "evdi.h"
@@ -179,6 +179,10 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd);
 int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
+void get_guest_addr(void);
+int register_connection(void);
+void destroy_connection(void);
+void get_guest_addr(void);
 
 void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
@@ -192,6 +196,7 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 #define IJTYPE_PACKAGE      "package"
 #define IJTYPE_BOOT         "boot"
 
+void *g_main_thread_cb(void *arg);
 void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
 void msgproc_package(ijcommand* ijcmd);
