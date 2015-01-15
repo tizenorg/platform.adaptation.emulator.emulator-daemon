@@ -163,9 +163,7 @@ void send_to_ecs(const char* cat, int group, int action, char* data)
     if (!tmp)
         return;
 
-    if (data != NULL) {
-        memcpy(tmp, &datalen, 2);
-    }
+    memcpy(tmp, &datalen, 2);
     memcpy(tmp + 2, &group, 1);
     memcpy(tmp + 3, &action, 1);
     if (data != NULL) {
