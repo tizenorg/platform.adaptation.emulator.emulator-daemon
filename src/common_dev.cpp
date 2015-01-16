@@ -54,7 +54,7 @@ static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 // HDS
 #define IJTYPE_HDS          "hds"
 
-char SDpath[256];
+char SDpath[512];
 
 // Location
 #define STATUS              15
@@ -298,7 +298,7 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
             {
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
-                strncpy(SDpath, ret, strlen(ret));
+                strncpy(SDpath, ret, sizeof(SDpath) -1);
                 LOGDEBUG("sdcard path is %s", SDpath);
 
                 mount_param* param = new mount_param(sockfd);
@@ -532,6 +532,8 @@ static void* getting_location(void* data)
 
     char* msg = 0;
     LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+    if (packet == NULL)
+        return 0;
 
     switch(param->ActionID)
     {
@@ -577,9 +579,7 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet != NULL) {
-        free(packet);
-    }
+    free(packet);
     if (param)
         delete param;
 
