@@ -213,7 +213,7 @@ static bool do_validate(char* pkgs)
 static bool do_install(char* pkgs)
 {
     char buf[MAX_PKGS_BUF];
-    bool ret = true;
+    int ret = 0;
 
     FILE* fp = popen(pkgs, "r");
     if (fp == NULL) {
@@ -224,16 +224,17 @@ static bool do_install(char* pkgs)
     memset(buf, 0, sizeof(buf));
     while(fgets(buf, sizeof(buf), fp)) {
         LOGINFO("[rpm] %s", buf);
-
-        if (!strncmp(buf, "error", 5)) {
-            ret = false;
-        }
         memset(buf, 0, sizeof(buf));
     }
 
-    pclose(fp);
+    ret = pclose(fp);
+    LOGINFO("[rpm] return value: %d", ret);
 
-    return ret;
+    if (ret != 0) {
+        return false;
+    }
+
+    return true;
 }
 
 static void remove_package(char* data)
