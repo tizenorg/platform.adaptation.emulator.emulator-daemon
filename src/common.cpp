@@ -186,55 +186,37 @@ void send_default_suspend_req(void)
     send_to_ecs(IJTYPE_SUSPEND, 5, 15, NULL);
 }
 
-static bool do_validate(char* pkgs)
-{
-    char buf[MAX_PKGS_BUF];
-
-    FILE* fp = popen(pkgs, "r");
-    if (fp == NULL) {
-        LOGERR("Failed to popen %s", pkgs);
-        return false;
-    }
-
-    memset(buf, 0, sizeof(buf));
-    while(fgets(buf, sizeof(buf), fp)) {
-        LOGINFO("[rpm]%s", buf);
-        if (!strncmp(buf, IJTYPE_PACKAGE, 7)) {
-            pclose(fp);
-            return false;
-        }
-        memset(buf, 0, sizeof(buf));
-    }
-
-    pclose(fp);
-    return true;
-}
-
-static bool do_install(char* pkgs)
+static bool do_rpm_execute(char* pkgs)
 {
     char buf[MAX_PKGS_BUF];
     int ret = 0;
 
     FILE* fp = popen(pkgs, "r");
     if (fp == NULL) {
-        LOGERR("Failed to popen %s", pkgs);
+        LOGERR("[rpm] Failed to popen %s", pkgs);
         return false;
     }
 
     memset(buf, 0, sizeof(buf));
     while(fgets(buf, sizeof(buf), fp)) {
-        LOGINFO("[rpm] %s", buf);
+        LOGINFO("[rpm]%s", buf);
         memset(buf, 0, sizeof(buf));
     }
 
     ret = pclose(fp);
-    LOGINFO("[rpm] return value: %d", ret);
-
-    if (ret != 0) {
+    if (ret == -1) {
+        LOGINFO("[rpm] pclose error: %d", errno);
         return false;
     }
 
-    return true;
+    if (ret >= 0 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0) {
+        LOGINFO("[rpm] RPM execution success: %s", pkgs);
+        return true;
+    }
+
+    LOGINFO("[rpm] RPM execution fail: [%x,%x,%x] %s", ret, WIFEXITED(ret), WEXITSTATUS(ret), pkgs);
+
+    return false;
 }
 
 static void remove_package(char* data)
@@ -305,10 +287,8 @@ static bool do_package(int action, char* data)
     strcat(pkg_list, " ");
     strcat(pkg_list, "2>&1");
 
-    LOGINFO("[cmd]%s", pkg_list);
-    if (action == 1 && do_validate(pkg_list)) {
-        return true;
-    } else if (action == 2 && do_install(pkg_list)) {
+    LOGINFO("[cmd] %s", pkg_list);
+    if ((action == 1 || action == 2) && do_rpm_execute(pkg_list)) {
         return true;
     }
 
