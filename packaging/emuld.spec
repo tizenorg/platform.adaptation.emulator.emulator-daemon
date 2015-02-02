@@ -19,8 +19,10 @@ A emulator daemon is used for communication between guest and host
 
 %if "%{?tizen_profile_name}" == "mobile"
 export CFLAGS+=" -DMOBILE"
-%elseif "%{?tizen_profile_name}" == "wearable"
+%else
+%if "%{?tizen_profile_name}" == "wearable"
 export CFLAGS+=" -DWEARABLE"
+%endif
 %endif
 
 cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
