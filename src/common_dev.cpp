@@ -54,7 +54,7 @@ static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 // HDS
 #define IJTYPE_HDS          "hds"
 
-char SDpath[512];
+char SDpath[256];
 
 // Location
 #define STATUS              15
@@ -65,13 +65,7 @@ char command[512];
  * SD Card functions
  */
 
-struct mount_param
-{
-    mount_param(int _fd) : fd(_fd) {}
-    int fd;
-};
-
-char* get_mount_info() {
+static char* get_mount_info() {
     struct mntent *ent;
     FILE *aFile;
 
@@ -125,8 +119,6 @@ int is_mounted()
 
 void* mount_sdcard(void* data)
 {
-    mount_param* param = (mount_param*) data;
-
     int ret = -1, i = 0;
     struct stat buf;
     char file_name[128], command[256];
@@ -202,15 +194,10 @@ void* mount_sdcard(void* data)
         packet = NULL;
     }
 
-    if (param)
-    {
-        delete param;
-        param = NULL;
-    }
     pthread_exit((void *) 0);
 }
 
-int umount_sdcard(const int fd)
+static int umount_sdcard(void)
 {
     int ret = -1, i = 0;
     char file_name[128];
@@ -269,7 +256,7 @@ int umount_sdcard(const int fd)
 }
 
 
-void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
+void msgproc_sdcard(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sdcard");
 
@@ -291,21 +278,17 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
     {
         case 0:                         // umount
             {
-                mount_status = umount_sdcard(sockfd);
+                mount_status = umount_sdcard();
             }
             break;
         case 1:                         // mount
             {
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
-                strncpy(SDpath, ret, sizeof(SDpath) -1);
+                strncpy(SDpath, ret, strlen(ret));
                 LOGDEBUG("sdcard path is %s", SDpath);
 
-                mount_param* param = new mount_param(sockfd);
-                if (!param)
-                    break;
-
-                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, (void*) param) != 0)
+                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, NULL) != 0)
                     LOGERR("mount sdcard pthread create fail!");
             }
 
@@ -414,7 +397,7 @@ void* exec_cmd_thread(void *args)
     pthread_exit(NULL);
 }
 
-void msgproc_cmd(int fd, ijcommand* ijcmd)
+void msgproc_cmd(ijcommand* ijcmd)
 {
     _auto_mutex _(&mutex_cmd);
     pthread_t cmd_thread_id;
@@ -532,8 +515,6 @@ static void* getting_location(void* data)
 
     char* msg = 0;
     LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
-    if (packet == NULL)
-        return 0;
 
     switch(param->ActionID)
     {
@@ -579,7 +560,9 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    free(packet);
+    if (packet != NULL) {
+        free(packet);
+    }
     if (param)
         delete param;
 
@@ -649,7 +632,7 @@ void setting_location(char* databuf)
     }
 }
 
-void msgproc_location(const int sockfd, ijcommand* ijcmd)
+void msgproc_location(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_location");
     if (ijcmd->msg.group == STATUS)
@@ -658,7 +641,6 @@ void msgproc_location(const int sockfd, ijcommand* ijcmd)
         if (!param)
             return;
 
-        param->get_status_sockfd = sockfd;
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
@@ -769,7 +751,7 @@ int umount_hds(void)
     return 0;
 }
 
-void msgproc_hds(const int sockfd, ijcommand* ijcmd)
+void msgproc_hds(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_hds");
 
