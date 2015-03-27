@@ -65,13 +65,7 @@ char command[512];
  * SD Card functions
  */
 
-struct mount_param
-{
-    mount_param(int _fd) : fd(_fd) {}
-    int fd;
-};
-
-char* get_mount_info() {
+static char* get_mount_info() {
     struct mntent *ent;
     FILE *aFile;
 
@@ -125,8 +119,6 @@ int is_mounted()
 
 void* mount_sdcard(void* data)
 {
-    mount_param* param = (mount_param*) data;
-
     int ret = -1, i = 0;
     struct stat buf;
     char file_name[128], command[256];
@@ -202,15 +194,10 @@ void* mount_sdcard(void* data)
         packet = NULL;
     }
 
-    if (param)
-    {
-        delete param;
-        param = NULL;
-    }
     pthread_exit((void *) 0);
 }
 
-int umount_sdcard(const int fd)
+static int umount_sdcard(void)
 {
     int ret = -1, i = 0;
     char file_name[128];
@@ -269,7 +256,7 @@ int umount_sdcard(const int fd)
 }
 
 
-void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
+void msgproc_sdcard(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sdcard");
 
@@ -291,21 +278,17 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
     {
         case 0:                         // umount
             {
-                mount_status = umount_sdcard(sockfd);
+                mount_status = umount_sdcard();
             }
             break;
         case 1:                         // mount
             {
                 memset(SDpath, '\0', sizeof(SDpath));
                 ret = strtok(NULL, token);
-                strcpy(SDpath, ret);
+                strncpy(SDpath, ret, strlen(ret));
                 LOGDEBUG("sdcard path is %s", SDpath);
 
-                mount_param* param = new mount_param(sockfd);
-                if (!param)
-                    break;
-
-                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, (void*) param) != 0)
+                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, NULL) != 0)
                     LOGERR("mount sdcard pthread create fail!");
             }
 
@@ -378,13 +361,16 @@ void msgproc_sdcard(const int sockfd, ijcommand* ijcmd)
                                     memcpy(tmp + HEADER_SIZE + mntData->length, mountinfo, mountinfo_size);
                                     mntData->length += mountinfo_size;
                                     memcpy(tmp, mntData, HEADER_SIZE);
-                                    delete mountinfo;
-                                    mountinfo = NULL;
+                                    free(mountinfo);
                                 }
 
                                 ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
 
                                 free(tmp);
+                            } else {
+                                if (mountinfo) {
+                                    free(mountinfo);
+                                }
                             }
                         }
                         break;
@@ -411,13 +397,18 @@ void* exec_cmd_thread(void *args)
     pthread_exit(NULL);
 }
 
-void msgproc_cmd(int fd, ijcommand* ijcmd)
+void msgproc_cmd(ijcommand* ijcmd)
 {
     _auto_mutex _(&mutex_cmd);
     pthread_t cmd_thread_id;
     char *cmd = (char*) malloc(ijcmd->msg.length + 1);
 
-    memset(cmd, 0x00, sizeof(cmd));
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
     strncpy(cmd, ijcmd->data, ijcmd->msg.length);
     LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
 
@@ -501,13 +492,16 @@ static char* get_location_status(void* p)
         }
     }
 
-    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
-    memset(packet, 0, sizeof(LXT_MESSAGE));
-    packet->length = strlen(message);
-    packet->group  = STATUS;
-    packet->action = LOCATION_STATUS;
-
-    return message;
+    if (message) {
+        LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = strlen(message);
+        packet->group  = STATUS;
+        packet->action = LOCATION_STATUS;
+        return message;
+    } else {
+        return NULL;
+    }
 }
 
 static void* getting_location(void* data)
@@ -566,12 +560,9 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet)
-    {
+    if (packet != NULL) {
         free(packet);
-        packet = NULL;
     }
-
     if (param)
         delete param;
 
@@ -641,7 +632,7 @@ void setting_location(char* databuf)
     }
 }
 
-void msgproc_location(const int sockfd, ijcommand* ijcmd)
+void msgproc_location(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_location");
     if (ijcmd->msg.group == STATUS)
@@ -650,7 +641,6 @@ void msgproc_location(const int sockfd, ijcommand* ijcmd)
         if (!param)
             return;
 
-        param->get_status_sockfd = sockfd;
         param->ActionID = ijcmd->msg.action;
         memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
 
@@ -761,7 +751,7 @@ int umount_hds(void)
     return 0;
 }
 
-void msgproc_hds(const int sockfd, ijcommand* ijcmd)
+void msgproc_hds(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_hds");
 

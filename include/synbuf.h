@@ -50,10 +50,10 @@ public:
         m_readptr = m_buf;
     }
 
-	~synbuf()
-	{
+    ~synbuf()
+    {
         freebuf();
-	}
+    }
 
     void reset_buf()
     {
