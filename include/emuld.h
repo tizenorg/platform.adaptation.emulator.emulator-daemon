@@ -55,6 +55,7 @@ enum
 #define MAX_GETCNT          10
 #define ID_SIZE             10
 #define HEADER_SIZE         4
+#define STATUS              15
 
 // Thread TID profile uses >= 5
 #define TID_BOOT            1
@@ -188,7 +189,10 @@ void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
 #define IJTYPE_SUSPEND      "suspend"
+#define IJTYPE_HDS          "hds"
+#define IJTYPE_SYSTEM       "system"
 #define IJTYPE_GUEST        "guest"
+#define IJTYPE_CMD          "cmd"
 #define IJTYPE_PACKAGE      "package"
 #define IJTYPE_BOOT         "boot"
 
@@ -196,7 +200,9 @@ void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
 void msgproc_package(ijcommand* ijcmd);
 void msgproc_hds(ijcommand* ijcmd);
+#define IJTYPE_LOCATION     "location"
 void msgproc_location(ijcommand* ijcmd);
+#define IJTYPE_SDCARD       "sdcard"
 void msgproc_sdcard(ijcommand* ijcmd);
 void* exec_cmd_thread(void *args);
 void msgproc_cmd(ijcommand* ijcmd);
@@ -204,9 +210,6 @@ void msgproc_cmd(ijcommand* ijcmd);
 /*
  * For the multi-profile
  */
-void process_evdi_command(ijcommand* ijcmd);
-bool server_process(void);
-void init_profile(void);
-void exit_profile(void);
+bool extra_evdi_command(ijcommand* ijcmd);
 
 #endif

@@ -30,7 +30,8 @@
 #ifndef __WEARABLE_H__
 #define __WEARABLE_H__
 
-#define TID_PEDOMETER       5
+#define IJTYPE_SENSOR       "sensor"
+
 void msgproc_sensor(ijcommand* ijcmd);
 
 #endif

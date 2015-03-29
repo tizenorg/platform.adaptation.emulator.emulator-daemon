@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.8.8
+Version: 0.9.0
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -26,6 +26,10 @@ export CFLAGS+=" -DMOBILE"
 %else
 %if "%{?tizen_profile_name}" == "wearable"
 export CFLAGS+=" -DWEARABLE"
+%else
+%if "%{?tizen_profile_name}" == "tv"
+export CFLAGS+=" -DTV"
+%endif
 %endif
 %endif
 

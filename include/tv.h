@@ -27,13 +27,15 @@
  *
  */
 
-#ifndef __MOBILE_H__
-#define __MOBILE_H__
+#ifndef __TV_H__
+#define __TV_H__
 
-#define TID_SENSOR          5
+#define IJTYPE_GESTURE      "gesture"
+#define IJTYPE_VOICE        "voice"
+#define IJTYPE_EI           "ei"
 
-#define IJTYPE_SENSOR       "sensor"
-
-void msgproc_sensor(ijcommand* ijcmd);
+bool msgproc_gesture(ijcommand* ijcmd);
+bool msgproc_voice(ijcommand* ijcmd);
+bool msgproc_extinput(ijcommand* ijcmd);
 
 #endif

@@ -13,49 +13,67 @@ set(PROJECT_RELEASE_VERSION "0")
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
 IF("$ENV{CFLAGS}" MATCHES "-DMOBILE")
-	OPTION(USE_D_MOBILE "Use Mobile Def" ON)
+    OPTION(USE_D_MOBILE "Use Mobile Def" ON)
 ENDIF()
 
 IF("$ENV{CFLAGS}" MATCHES "-DWEARABLE")
-	OPTION(USE_D_WEARABLE "Use Wearable Def" ON)
+    OPTION(USE_D_WEARABLE "Use Wearable Def" ON)
+ENDIF()
+
+IF("$ENV{CFLAGS}" MATCHES "-DTV")
+    OPTION(USE_D_TV "Use TV Def" ON)
 ENDIF()
 
 SET(SRCS
-	src/emuld.cpp
-	src/evdi.cpp
-	src/client.cpp
-	src/common.cpp
+    src/emuld.cpp
+    src/evdi.cpp
+    src/client.cpp
+    src/common.cpp
 )
 
 IF(USE_D_MOBILE)
-	SET(SRCS ${SRCS}
-		src/mobile.cpp
-		src/mobile_dev.cpp
-		src/common_dev.cpp
-	)
+    SET(SRCS ${SRCS}
+        src/mobile.cpp
+    )
 ENDIF(USE_D_MOBILE)
 
 IF(USE_D_WEARABLE)
-	SET(SRCS ${SRCS}
-		src/wearable.cpp
-		src/wearable_dev.cpp
-		src/common_dev.cpp
-	)
+    SET(SRCS ${SRCS}
+        src/wearable.cpp
+    )
 ENDIF(USE_D_WEARABLE)
+
+IF(USE_D_TV)
+    SET(SRCS ${SRCS}
+        src/tv.cpp
+    )
+ENDIF(USE_D_TV)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
 INCLUDE(FindPkgConfig)
 
 SET(PKG_MODULE
-	vconf
-	deviced
-	dlog
-	ecore
-	edbus
+    vconf
+    deviced
+    dlog
+    ecore
+    edbus
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})
+
+SET(LIBS
+    ${LIBS}
+    pthread
+)
+
+#IF(USE_D_TV)
+#   SET(LIBS ${LIBS}
+#       sinative
+#       si-api
+#   )
+#ENDIF(USE_D_TV)
 
 ADD_DEFINITIONS("-DENABLE_DLOG_OUT")
 ADD_DEFINITIONS(-Wall -O3 -omit-frame-pointer)
@@ -67,6 +85,6 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CFLAGS}")
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SRCS})
 
-TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} -lpthread)
+TARGET_LINK_LIBRARIES(${PROJECT_NAME} ${PKGS_LDFLAGS} ${LIBS})
 
 INSTALL(TARGETS ${PROJECT_NAME} DESTINATION /usr/bin)
