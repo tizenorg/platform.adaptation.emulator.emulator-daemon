@@ -525,3 +525,16 @@ bool extra_evdi_command(ijcommand* ijcmd) {
 
     return false;
 }
+
+void add_vconf_map_profile(void)
+{
+    /* tv */
+    add_vconf_map(TV, VCONF_HDMI1);
+    add_vconf_map(TV, VCONF_HDMI2);
+    add_vconf_map(TV, VCONF_HDMI3);
+    add_vconf_map(TV, VCONF_HDMI4);
+    add_vconf_map(TV, VCONF_AV1);
+    add_vconf_map(TV, VCONF_AV2);
+    add_vconf_map(TV, VCONF_COMP1);
+    add_vconf_map(TV, VCONF_COMP2);
+}

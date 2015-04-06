@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#include <utility>
 
 #include <E_DBus.h>
 #include <Ecore.h>
@@ -43,7 +44,6 @@
 #include <stdlib.h>
 #include <mntent.h>
 
-#include <vconf.h>
 #include <vconf-keys.h>
 
 #include "emuld.h"
@@ -64,6 +64,39 @@ static pthread_mutex_t mutex_pkg = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 
 static struct timeval tv_start_poweroff;
+
+static std::multimap<int, std::string> vconf_multimap;
+
+void add_vconf_map(VCONF_TYPE key, std::string value)
+{
+    vconf_multimap.insert(std::pair<int, std::string>(key, value));
+}
+
+void add_vconf_map_common(void)
+{
+    /* location */
+    add_vconf_map(LOCATION, VCONF_REPLAYMODE);
+    add_vconf_map(LOCATION, VCONF_FILENAME);
+    add_vconf_map(LOCATION, VCONF_MLATITUDE);
+    add_vconf_map(LOCATION, VCONF_MLONGITUDE);
+    add_vconf_map(LOCATION, VCONF_MALTITUDE);
+    add_vconf_map(LOCATION, VCONF_MHACCURACY);
+
+    /* memory */
+    add_vconf_map(MEMORY, VCONF_LOW_MEMORY);
+}
+
+bool check_possible_vconf_key(std::string key)
+{
+    std::multimap<int, std::string>::iterator it;
+    for(it = vconf_multimap.begin(); it != vconf_multimap.end(); it++) {
+        if (it->second.compare(key) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void systemcall(const char* param)
 {
@@ -440,7 +473,6 @@ void* dbus_booting_done_check(void* data)
 char SDpath[256];
 
 // Location
-#define STATUS              15
 #define LOCATION_STATUS     120
 char command[512];
 
@@ -795,9 +827,214 @@ void msgproc_cmd(ijcommand* ijcmd)
     strncpy(cmd, ijcmd->data, ijcmd->msg.length);
     LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
 
-    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0)
-    {
+    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0) {
         LOGERR("cmd pthread create fail!");
+    }
+}
+
+int get_vconf_status(char** value, vconf_t type, const char* key)
+{
+    if (type == VCONF_TYPE_INT) {
+        int status;
+        int ret = vconf_get_int(key, &status);
+        if (ret != 0) {
+            LOGERR("cannot get vconf key - %s", key);
+            return 0;
+        }
+
+        ret = asprintf(value, "%d", status);
+        if (ret == -1) {
+            LOGERR("insufficient memory available");
+            return 0;
+        }
+    } else if (type == VCONF_TYPE_DOUBLE) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_STRING) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_BOOL) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_DIR) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else {
+        LOGERR("undefined vconf type");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    }
+
+    return strlen(*value);
+}
+
+static void* get_vconf_value(void* data)
+{
+    pthread_detach(pthread_self());
+
+    char *value = NULL;
+    vconf_res_type *vrt = (vconf_res_type*)data;
+
+    if (!check_possible_vconf_key(vrt->vconf_key)) {
+        LOGERR("%s is not available key.");
+    } else {
+        int length = get_vconf_status(&value, vrt->vconf_type, vrt->vconf_key);
+        if (length == 0 || !value) {
+            LOGERR("send error message to injector");
+            send_to_ecs(IJTYPE_VCONF, vrt->group, STATUS, NULL);
+        } else {
+            LOGDEBUG("send data to injector");
+            send_to_ecs(IJTYPE_VCONF, vrt->group, STATUS, value);
+            free(value);
+        }
+    }
+
+    free(vrt->vconf_key);
+    free(vrt);
+
+    pthread_exit((void *) 0);
+}
+
+static void* set_vconf_value(void* data)
+{
+    pthread_detach(pthread_self());
+
+    vconf_res_type *vrt = (vconf_res_type*)data;
+
+    if (!check_possible_vconf_key(vrt->vconf_key)) {
+        LOGERR("%s is not available key.");
+    } else {
+        keylist_t *get_keylist;
+        keynode_t *pkey_node = NULL;
+        get_keylist = vconf_keylist_new();
+        if (!get_keylist) {
+            LOGERR("vconf_keylist_new() failed");
+        } else {
+            vconf_get(get_keylist, vrt->vconf_key, VCONF_GET_ALL);
+            int ret = vconf_keylist_lookup(get_keylist, vrt->vconf_key, &pkey_node);
+            if (ret == 0) {
+                LOGERR("%s key not found", vrt->vconf_key);
+            } else {
+                if (vconf_keynode_get_type(pkey_node) != vrt->vconf_type) {
+                    LOGERR("inconsistent type (prev: %d, new: %d)",
+                                vconf_keynode_get_type(pkey_node), vrt->vconf_type);
+                }
+            }
+            vconf_keylist_free(get_keylist);
+        }
+
+        /* TODO: to be implemented another type */
+        if (vrt->vconf_type == VCONF_TYPE_INT) {
+            int val = atoi(vrt->vconf_val);
+            vconf_set_int(vrt->vconf_key, val);
+            LOGDEBUG("key: %s, val: %d", vrt->vconf_key, val);
+        } else if (vrt->vconf_type == VCONF_TYPE_DOUBLE) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_STRING) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_BOOL) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_DIR) {
+            LOGERR("not implemented");
+        } else {
+            LOGERR("undefined vconf type");
+        }
+    }
+
+    free(vrt->vconf_key);
+    free(vrt->vconf_val);
+    free(vrt);
+
+    pthread_exit((void *) 0);
+}
+
+void msgproc_vconf(ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_vconf");
+
+    const int tmpsize = ijcmd->msg.length;
+    char token[] = "\n";
+    char tmpdata[tmpsize];
+    memcpy(tmpdata, ijcmd->data, tmpsize);
+
+    char* ret = NULL;
+    ret = strtok(tmpdata, token);
+    if (!ret) {
+        LOGERR("vconf type is empty");
+        return;
+    }
+
+    vconf_res_type *vrt = (vconf_res_type*)malloc(sizeof(vconf_res_type));
+    if (!vrt) {
+        LOGERR("insufficient memory available");
+        return;
+    }
+
+    if (strcmp(ret, "int") == 0) {
+        vrt->vconf_type = VCONF_TYPE_INT;
+    } else if (strcmp(ret, "double") == 0) {
+        vrt->vconf_type = VCONF_TYPE_DOUBLE;
+    } else if (strcmp(ret, "string") == 0) {
+        vrt->vconf_type = VCONF_TYPE_STRING;
+    } else if (strcmp(ret, "bool") == 0) {
+        vrt->vconf_type = VCONF_TYPE_BOOL;
+    } else if (strcmp(ret, "dir") ==0) {
+        vrt->vconf_type = VCONF_TYPE_DIR;
+    } else {
+        LOGERR("undefined vconf type");
+        free(vrt);
+        return;
+    }
+
+    ret = strtok(NULL, token);
+    if (!ret) {
+        LOGERR("vconf key is empty");
+        free(vrt);
+        return;
+    }
+
+    vrt->vconf_key = (char*)malloc(strlen(ret) + 1);
+    if (!vrt->vconf_key) {
+        LOGERR("insufficient memory available");
+        free(vrt);
+        return;
+    }
+    sprintf(vrt->vconf_key, "%s", ret);
+
+    if (ijcmd->msg.action == VCONF_SET) {
+        ret = strtok(NULL, token);
+        if (!ret) {
+            LOGERR("vconf value is empty");
+            free(vrt->vconf_key);
+            free(vrt);
+            return;
+        }
+
+        vrt->vconf_val = (char*)malloc(strlen(ret) + 1);
+        if (!vrt->vconf_val) {
+            LOGERR("insufficient memory available");
+            free(vrt->vconf_key);
+            free(vrt);
+            return;
+        }
+        sprintf(vrt->vconf_val, "%s", ret);
+
+        if (pthread_create(&tid[TID_VCONF], NULL, set_vconf_value, (void*)vrt) != 0) {
+            LOGERR("set vconf pthread create fail!");
+            return;
+        }
+    } else if (ijcmd->msg.action == VCONF_GET) {
+        vrt->group = ijcmd->msg.group;
+        if (pthread_create(&tid[TID_VCONF], NULL, get_vconf_value, (void*)vrt) != 0) {
+            LOGERR("get vconf pthread create fail!");
+            return;
+        }
+    } else {
+        LOGERR("undefined action %d", ijcmd->msg.action);
     }
 }
 
@@ -1148,3 +1385,36 @@ void msgproc_hds(ijcommand* ijcmd)
     }
 }
 
+static void low_memory_cb(keynode_t* pKey, void* pData)
+{
+    switch (vconf_keynode_get_type(pKey)) {
+        case VCONF_TYPE_INT:
+        {
+            int value = vconf_keynode_get_int(pKey);
+            LOGDEBUG("key = %s, value = %d(int)", vconf_keynode_get_name(pKey), value);
+            char *buf = (char*)malloc(sizeof(int));
+            if (!buf) {
+                LOGERR("insufficient memory available");
+                return;
+            }
+
+            sprintf(buf, "%d", vconf_keynode_get_int(pKey));
+            send_to_ecs(IJTYPE_VCONF, GROUP_MEMORY, STATUS, buf);
+
+            free(buf);
+            break;
+        }
+        default:
+            LOGERR("type mismatch in key: %s", vconf_keynode_get_name(pKey));
+            break;
+    }
+}
+
+void set_vconf_cb(void)
+{
+    int ret = 0;
+    ret = vconf_notify_key_changed(VCONF_LOW_MEMORY, low_memory_cb, NULL);
+    if (ret) {
+        LOGERR("vconf_notify_key_changed() failed");
+    }
+}

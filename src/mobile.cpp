@@ -27,8 +27,6 @@
  *
  */
 
-#include <stdio.h>
-#include <vconf/vconf.h>
 #include <vconf/vconf-keys.h>
 
 #include "emuld.h"
@@ -445,31 +443,10 @@ void setting_sensor(char *buffer)
     }
 }
 
-
-static int inline get_vconf_status(char* msg, const char* key, int buf_len)
-{
-    int status;
-    int ret = vconf_get_int(key, &status);
-    if (ret != 0) {
-        LOGERR("cannot get vconf key - %s", key);
-        return -1;
-    }
-
-    sprintf(msg, "%d", status);
-    return strlen(msg);
-}
-
-char* __tmpalloc(const int size)
-{
-    char* message = (char*)malloc(sizeof(char) * size);
-    memset(message, 0, sizeof(char) * size);
-    return message;
-}
-
 char* get_rssi_level(void* p)
 {
-    char* message = __tmpalloc(5);
-    int length = get_vconf_status(message, "memory/telephony/rssi", 5);
+    char* message = NULL;
+    int length = get_vconf_status(&message, VCONF_TYPE_INT, "memory/telephony/rssi");
     if (length < 0){
         return 0;
     }
@@ -595,4 +572,16 @@ bool extra_evdi_command(ijcommand* ijcmd) {
         return true;
     }
     return false;
+}
+
+void add_vconf_map_profile(void)
+{
+    /* sensor */
+    add_vconf_map(SENSOR, VCONF_DBTAP);
+    add_vconf_map(SENSOR, VCONF_SHAKE);
+    add_vconf_map(SENSOR, VCONF_SNAP);
+    add_vconf_map(SENSOR, VCONF_MOVETOCALL);
+
+    /* telephony */
+    add_vconf_map(TELEPHONY, VCONF_RSSI);
 }

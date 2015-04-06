@@ -31,10 +31,14 @@
 #ifndef __EMULD_H__
 #define __EMULD_H__
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
+#include <vconf.h>
+#include <iostream>
+#include <cassert>
 
 #include <map>
 
@@ -62,6 +66,7 @@ enum
 #define TID_SDCARD          2
 #define TID_LOCATION        3
 #define TID_HDS             4
+#define TID_VCONF           6
 
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
@@ -181,6 +186,7 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
 
+void set_vconf_cb(void);
 void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
 void send_default_suspend_req(void);
@@ -195,6 +201,7 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 #define IJTYPE_CMD          "cmd"
 #define IJTYPE_PACKAGE      "package"
 #define IJTYPE_BOOT         "boot"
+#define IJTYPE_VCONF        "vconf"
 
 void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
@@ -206,10 +213,56 @@ void msgproc_location(ijcommand* ijcmd);
 void msgproc_sdcard(ijcommand* ijcmd);
 void* exec_cmd_thread(void *args);
 void msgproc_cmd(ijcommand* ijcmd);
+void msgproc_vconf(ijcommand* ijcmd);
+
+#define GROUP_MEMORY        30
+
+/* common vconf keys */
+#define VCONF_LOW_MEMORY    "memory/sysman/low_memory"
+#define VCONF_REPLAYMODE    "db/location/replay/ReplayMode"
+#define VCONF_FILENAME      "db/location/replay/FileName"
+#define VCONF_MLATITUDE     "db/location/replay/ManualLatitude"
+#define VCONF_MLONGITUDE    "db/location/replay/ManualLongitude"
+#define VCONF_MALTITUDE     "db/location/replay/ManualAltitude"
+#define VCONF_MHACCURACY    "db/location/replay/ManualHAccuracy"
+
+#define VCONF_SET 1
+#define VCONF_GET 0
+
+enum VCONF_TYPE {
+    SENSOR    = 0,
+    TELEPHONY = 1,
+    LOCATION  = 2,
+    TV        = 3,
+    MEMORY    = 4
+};
+
+struct vconf_res_type {
+    char *vconf_key;
+    char *vconf_val;
+    int group;
+    vconf_t vconf_type;
+};
+
+void add_vconf_map(VCONF_TYPE key, std::string value);
+void add_vconf_map_common(void);
+bool check_possible_vconf_key(std::string key);
 
 /*
  * For the multi-profile
  */
 bool extra_evdi_command(ijcommand* ijcmd);
+void add_vconf_map_profile(void);
+int get_vconf_status(char** value, vconf_t type, const char* key);
+
+static inline char* __tmpalloc(const int size)
+{
+    char* message = (char*)malloc(sizeof(char) * size);
+    if (!message) {
+        return NULL;
+    }
+    memset(message, 0, sizeof(char) * size);
+    return message;
+}
 
 #endif

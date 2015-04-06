@@ -177,6 +177,10 @@ static void process_evdi_command(ijcommand* ijcmd)
     {
         msgproc_cmd(ijcmd);
     }
+    else if (strcmp(ijcmd->cmd, IJTYPE_VCONF) == 0)
+    {
+        msgproc_vconf(ijcmd);
+    }
     else
     {
         if (!extra_evdi_command(ijcmd)) {
@@ -357,6 +361,10 @@ int main( int argc , char *argv[])
     }
 
     LOGINFO("[START] epoll & device init success");
+
+    add_vconf_map_common();
+    add_vconf_map_profile();
+    set_vconf_cb();
 
     send_emuld_connection();
 

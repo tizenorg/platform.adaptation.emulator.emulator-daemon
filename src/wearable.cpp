@@ -298,3 +298,7 @@ bool extra_evdi_command(ijcommand* ijcmd) {
     }
     return false;
 }
+
+void add_vconf_map_profile(void)
+{
+}
