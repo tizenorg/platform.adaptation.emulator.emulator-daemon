@@ -185,6 +185,7 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd);
 int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
+void get_host_addr(void);
 
 void set_vconf_cb(void);
 void send_to_ecs(const char* cat, int group, int action, char* data);

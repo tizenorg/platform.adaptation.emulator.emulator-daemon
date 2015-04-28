@@ -26,6 +26,7 @@ ENDIF()
 
 SET(SRCS
     src/emuld.cpp
+    src/net.cpp
     src/evdi.cpp
     src/client.cpp
     src/common.cpp

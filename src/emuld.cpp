@@ -362,6 +362,7 @@ int main( int argc , char *argv[])
 
     LOGINFO("[START] epoll & device init success");
 
+    get_host_addr();
     add_vconf_map_common();
     add_vconf_map_profile();
     set_vconf_cb();
