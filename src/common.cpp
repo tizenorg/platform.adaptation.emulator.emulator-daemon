@@ -56,6 +56,7 @@
 #define SUSPEND_LOCK        1
 
 #define MAX_PKGS_BUF        1024
+#define MAX_DATA_BUF        1024
 
 #define PATH_PACKAGE_INSTALL    "/opt/usr/apps/tmp/sdk_tools/"
 #define RPM_CMD_QUERY       "-q"
@@ -1292,22 +1293,62 @@ static char* make_header_msg(int group, int action)
 
 #define MSG_GROUP_HDS   100
 
-void* mount_hds(void* data)
+int try_mount(char* tag, char* path)
+{
+    int ret = 0;
+
+    ret = mount(tag, path, "9p", 0,
+                "trans=virtio,version=9p2000.L,msize=65536");
+    if (ret == -1)
+        return errno;
+
+    return ret;
+}
+
+static bool get_tag_path(char* data, char** tag, char** path)
+{
+    char token[] = "\n";
+
+    LOGINFO("get_tag_path data : %s", data);
+    *tag = strtok(data, token);
+    if (*tag == NULL) {
+        LOGERR("data does not have a correct tag: %s", data);
+        return false;
+    }
+
+    *path = strtok(NULL, token);
+    if (*path == NULL) {
+        LOGERR("data does not have a correct path: %s", data);
+        return false;
+    }
+
+    return true;
+}
+
+static void* mount_hds(void* args)
 {
     int i, ret = 0;
     char* tmp;
-    int group, action;
+    int action = 2;
+    char* tag;
+    char* path;
+    char* data = (char*)args;
 
     LOGINFO("start hds mount thread");
 
     pthread_detach(pthread_self());
 
-    usleep(500000);
+    if (!get_tag_path(data, &tag, &path)) {
+        free(data);
+        return NULL;
+    }
+
+    LOGINFO("tag : %s, path: %s", tag, path);
+    usleep(50000);
 
     for (i = 0; i < 20; i++)
     {
-        ret = mount("fileshare", "/mnt/host", "9p", 0,
-                    "trans=virtio,version=9p2000.L,msize=65536");
+        ret = try_mount(tag, path);
         if(ret == 0) {
             action = 1;
             break;
@@ -1317,71 +1358,95 @@ void* mount_hds(void* data)
         usleep(500000);
     }
 
-    group = MSG_GROUP_HDS;
-
-    if (i == 20 || ret != 0)
-        action = 2;
-
-    tmp = make_header_msg(group, action);
+    tmp = make_header_msg(MSG_GROUP_HDS, action);
     if (!tmp) {
         LOGERR("failed to alloc: out of resource.");
-        pthread_exit((void *) 0);
+        free(data);
         return NULL;
     }
 
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
 
+    free(data);
     free(tmp);
 
-    pthread_exit((void *) 0);
+    return NULL;
 }
 
-int umount_hds(void)
+static void* umount_hds(void* args)
 {
     int ret = 0;
     char* tmp;
-    int group, action;
+    int action = 3;
+    char* tag;
+    char* path;
+    char* data = (char*)args;
 
-    pthread_cancel(tid[TID_HDS]);
+    LOGINFO("unmount hds.");
+    pthread_detach(pthread_self());
 
-    LOGINFO("unmount /mnt/host.");
+    if (!get_tag_path(data, &tag, &path)) {
+        LOGERR("wrong tag or path.");
+        free(data);
+        return NULL;
+    }
 
-    ret = umount("/mnt/host");
+    ret = umount(path);
     if (ret != 0) {
         LOGERR("unmount failed with error num: %d", errno);
         action = 4;
-    } else {
-        action = 3;
     }
 
-    group = MSG_GROUP_HDS;
-
-    tmp = make_header_msg(group, action);
+    tmp = make_header_msg(MSG_GROUP_HDS, action);
     if (!tmp) {
         LOGERR("failed to alloc: out of resource.");
-        return -1;
+        free(data);
+        return NULL;
     }
 
     LOGINFO("send result with action %d to evdi", action);
 
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
 
+    free(data);
     free(tmp);
 
-    return 0;
+    return NULL;
 }
 
+#define COMPAT_DEFAULT_DATA     "fileshare\n/mnt/host\n"
 void msgproc_hds(ijcommand* ijcmd)
 {
+    char* data;
     LOGDEBUG("msgproc_hds");
 
+    if (!strncmp(ijcmd->data, HDS_DEFAULT_PATH, 9)) {
+        LOGINFO("hds compatibility mode with %s", ijcmd->data);
+        data = strdup(COMPAT_DEFAULT_DATA);
+    } else {
+        data = strdup(ijcmd->data);
+    }
+
+    if (data == NULL) {
+        LOGERR("data dup is failed. out of memory.");
+        return;
+    }
+
+    LOGINFO("action: %d, data: %s", ijcmd->msg.action, data);
     if (ijcmd->msg.action == 1) {
-        if (pthread_create(&tid[TID_HDS], NULL, mount_hds, NULL) != 0)
+        if (pthread_create(&tid[TID_HDS], NULL, mount_hds, (void*)data) != 0) {
             LOGERR("mount hds pthread create fail!");
+            free(data);
+        }
     } else if (ijcmd->msg.action == 2) {
-        umount_hds();
+        pthread_cancel(tid[TID_HDS]);
+        if (pthread_create(&tid[TID_HDS], NULL, umount_hds, (void*)data) != 0) {
+            LOGERR("umount hds pthread create fail!");
+            free(data);
+        }
     } else {
         LOGERR("unknown action cmd.");
+        free(data);
     }
 }
 

@@ -194,6 +194,10 @@ void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
+#define HDS_DEFAULT_TAG     "fileshare"
+#define HDS_DEFAULT_PATH    "/mnt/host"
+int try_mount(char* tag, char* path);
+
 #define IJTYPE_SUSPEND      "suspend"
 #define IJTYPE_HDS          "hds"
 #define IJTYPE_SYSTEM       "system"
@@ -202,14 +206,14 @@ int parse_val(char *buff, unsigned char data, char *parsbuf);
 #define IJTYPE_PACKAGE      "package"
 #define IJTYPE_BOOT         "boot"
 #define IJTYPE_VCONF        "vconf"
+#define IJTYPE_LOCATION     "location"
+#define IJTYPE_SDCARD       "sdcard"
 
 void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
 void msgproc_package(ijcommand* ijcmd);
 void msgproc_hds(ijcommand* ijcmd);
-#define IJTYPE_LOCATION     "location"
 void msgproc_location(ijcommand* ijcmd);
-#define IJTYPE_SDCARD       "sdcard"
 void msgproc_sdcard(ijcommand* ijcmd);
 void* exec_cmd_thread(void *args);
 void msgproc_cmd(ijcommand* ijcmd);
