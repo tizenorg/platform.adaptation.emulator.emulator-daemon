@@ -341,6 +341,8 @@ static bool server_process(void)
 
 int main( int argc , char *argv[])
 {
+    int ret = 0;
+
     init_fd();
 
     if (!epoll_init())
@@ -370,6 +372,9 @@ int main( int argc , char *argv[])
     send_emuld_connection();
 
     send_default_suspend_req();
+
+    ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
+    LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
 
     while(!exit_flag)
     {
