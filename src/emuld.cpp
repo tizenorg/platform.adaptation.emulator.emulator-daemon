@@ -341,6 +341,7 @@ static bool server_process(void)
 
 int main( int argc , char *argv[])
 {
+    int conn_ret = -1;
     int ret = 0;
 
     init_fd();
@@ -363,8 +364,8 @@ int main( int argc , char *argv[])
     }
 
     LOGINFO("[START] epoll & device init success");
+    conn_ret = register_connection();
 
-    get_host_addr();
     add_vconf_map_common();
     add_vconf_map_profile();
     set_vconf_cb();
@@ -382,6 +383,12 @@ int main( int argc , char *argv[])
     }
 
     stop_listen();
+    if (conn_ret == 1)
+    {
+        LOGINFO("destroy connection");
+        destroy_connection();
+    }
+
 
     LOGINFO("emuld exit");
 

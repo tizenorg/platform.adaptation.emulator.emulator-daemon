@@ -36,6 +36,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
+#include <glib.h>
 #include <vconf.h>
 #include <iostream>
 #include <cassert>
@@ -185,7 +186,9 @@ bool read_ijcmd(const int fd, ijcommand* ijcmd);
 int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
-void get_host_addr(void);
+void get_guest_addr(void);
+int register_connection(void);
+void destroy_connection(void);
 
 void set_vconf_cb(void);
 void send_to_ecs(const char* cat, int group, int action, char* data);
@@ -210,6 +213,7 @@ int try_mount(char* tag, char* path);
 #define IJTYPE_LOCATION     "location"
 #define IJTYPE_SDCARD       "sdcard"
 
+void *g_main_thread_cb(void *arg);
 void msgproc_suspend(ijcommand* ijcmd);
 void msgproc_system(ijcommand* ijcmd);
 void msgproc_package(ijcommand* ijcmd);

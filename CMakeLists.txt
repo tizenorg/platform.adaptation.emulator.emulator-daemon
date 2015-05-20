@@ -60,6 +60,7 @@ SET(PKG_MODULE
     dlog
     ecore
     edbus
+    capi-network-connection
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})
