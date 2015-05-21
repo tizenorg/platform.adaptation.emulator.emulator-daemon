@@ -429,6 +429,22 @@ static void boot_done(void *data, DBusMessage *msg)
     }
 }
 
+static void sig_handler(int signo)
+{
+    LOGINFO("received signal: %d. EXIT!", signo);
+    _exit(0);
+}
+
+static void add_sig_handler(int signo)
+{
+    sighandler_t sig;
+
+    sig = signal(signo, sig_handler);
+    if (sig == SIG_ERR) {
+        LOGERR("adding %d signal failed : %d", signo, errno);
+    }
+}
+
 void* dbus_booting_done_check(void* data)
 {
     E_DBus_Connection *connection;
@@ -461,6 +477,10 @@ void* dbus_booting_done_check(void* data)
         return NULL;
     }
     LOGINFO("[DBUS] signal handler is added.");
+
+    add_sig_handler(SIGINT);
+    add_sig_handler(SIGTERM);
+    add_sig_handler(SIGUSR1);
 
     ecore_main_loop_begin();
 
