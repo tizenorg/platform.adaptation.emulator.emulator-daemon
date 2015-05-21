@@ -372,7 +372,6 @@ void get_guest_addr()
         strcpy(ifrq.ifr_name, "eth0");
         while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0)
         {
-            LOGINFO("wait until ip allocated...")
             sleep(0.5);
         }
         sin = (struct sockaddr_in *)&ifrq.ifr_addr;
