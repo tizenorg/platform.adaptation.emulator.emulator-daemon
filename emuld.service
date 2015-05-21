@@ -1,9 +1,9 @@
 [Unit]
 Description=Daemon for emulator
-After=system-server.service
-After=connman.service
-Requires=system-server.service
+Requires=deviced.service
+After=deviced.service
 Requires=connman.service
+After=connman.service
 
 [Service]
 Type=simple
