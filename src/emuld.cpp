@@ -155,6 +155,39 @@ static int read_header(int fd, LXT_MESSAGE* packet)
     return readed;
 }
 
+static void process_evdi_command(ijcommand* ijcmd)
+{
+    if (strcmp(ijcmd->cmd, IJTYPE_SUSPEND) == 0)
+    {
+        msgproc_suspend(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, IJTYPE_HDS) == 0)
+    {
+        msgproc_hds(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, IJTYPE_SYSTEM) == 0)
+    {
+        msgproc_system(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, IJTYPE_PACKAGE) == 0)
+    {
+        msgproc_package(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, IJTYPE_CMD) == 0)
+    {
+        msgproc_cmd(ijcmd);
+    }
+    else if (strcmp(ijcmd->cmd, IJTYPE_VCONF) == 0)
+    {
+        msgproc_vconf(ijcmd);
+    }
+    else
+    {
+        if (!extra_evdi_command(ijcmd)) {
+            LOGERR("Unknown packet: %s", ijcmd->cmd);
+        }
+    }
+}
 
 bool read_ijcmd(const int fd, ijcommand* ijcmd)
 {
@@ -277,9 +310,39 @@ void writelog(const char* fmt, ...)
     fclose(logfile);
 }
 
+static bool server_process(void)
+{
+    int i,nfds;
+    int fd_tmp;
+
+    nfds = epoll_wait(g_epoll_fd, g_events, MAX_EVENTS, 100);
+
+    if (nfds == -1 && errno != EAGAIN && errno != EINTR)
+    {
+        LOGERR("epoll wait(%d)", errno);
+        return true;
+    }
+
+    for( i = 0 ; i < nfds ; i++ )
+    {
+        fd_tmp = g_events[i].data.fd;
+        if (fd_tmp == g_fd[fdtype_device])
+        {
+            recv_from_evdi(fd_tmp);
+        }
+        else
+        {
+            LOGERR("unknown request event fd : (%d)", fd_tmp);
+        }
+    }
+
+    return false;
+}
+
 int main( int argc , char *argv[])
 {
     int conn_ret = -1;
+    int ret = 0;
 
     init_fd();
 
@@ -303,18 +366,20 @@ int main( int argc , char *argv[])
     LOGINFO("[START] epoll & device init success");
     conn_ret = register_connection();
 
-    init_profile();
+    add_vconf_map_common();
+    add_vconf_map_profile();
+    set_vconf_cb();
 
-    send_emuld_connection();
 
     send_default_suspend_req();
+
+    ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
+    LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
 
     while(!exit_flag)
     {
         exit_flag = server_process();
     }
-
-    exit_profile();
 
     stop_listen();
     if (conn_ret == 1)
@@ -322,6 +387,7 @@ int main( int argc , char *argv[])
         LOGINFO("destroy connection");
         destroy_connection();
     }
+
 
     LOGINFO("emuld exit");
 

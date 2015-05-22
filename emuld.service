@@ -1,11 +1,14 @@
 [Unit]
 Description=Daemon for emulator
-After=system-server.service
-Requires=system-server.service
+Requires=deviced.service
+After=deviced.service
+Requires=connman.service
+After=connman.service
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/emuld
+KillSignal=SIGUSR1
 
 [Install]
 WantedBy=emulator.target

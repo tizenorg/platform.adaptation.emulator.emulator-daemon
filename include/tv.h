@@ -27,11 +27,24 @@
  *
  */
 
-#ifndef __WEARABLE_H__
-#define __WEARABLE_H__
+#ifndef __TV_H__
+#define __TV_H__
 
-#define IJTYPE_SENSOR       "sensor"
+#define IJTYPE_GESTURE      "gesture"
+#define IJTYPE_VOICE        "voice"
+#define IJTYPE_EI           "ei"
 
-void msgproc_sensor(ijcommand* ijcmd);
+#define VCONF_HDMI1 "memory/sysman/hdmi1"
+#define VCONF_HDMI2 "memory/sysman/hdmi2"
+#define VCONF_HDMI3 "memory/sysman/hdmi3"
+#define VCONF_HDMI4 "memory/sysman/hdmi4"
+#define VCONF_AV1   "memory/sysman/av1"
+#define VCONF_AV2   "memory/sysman/av1"
+#define VCONF_COMP1 "memory/sysman/comp1"
+#define VCONF_COMP2 "memory/sysman/comp1"
+
+bool msgproc_gesture(ijcommand* ijcmd);
+bool msgproc_voice(ijcommand* ijcmd);
+bool msgproc_extinput(ijcommand* ijcmd);
 
 #endif

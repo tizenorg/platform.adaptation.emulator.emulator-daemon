@@ -25,10 +25,11 @@
  */
 
 #include <stdio.h>
-#include <unistd.h>
+#include <stdlib.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
+#include <unistd.h>
 #include <netdb.h>
 #include <string.h>
 #include <net/if.h>
@@ -36,14 +37,12 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <fcntl.h>
-
 #include "emuld.h"
-#include "net_connection.h"
+#include <net_connection.h>
 
 #define PROC_CMDLINE_PATH "/proc/cmdline"
-#define IP_SUFFIX "ip="
+#define IP_SUFFIX " ip="
 #define IJTYPE_GUESTIP "guest_ip"
-
 pthread_t g_main_thread;
 char g_guest_ip[64];
 char g_guest_subnet[64];
@@ -52,7 +51,7 @@ char g_guest_dns[64];
 connection_h connection = NULL;
 connection_profile_h profile;
 GMainLoop *mainloop;
-
+bool use_dynamic_ip = false;
 static void send_guest_ip_req(void);
 
 static int update_ip_info(connection_profile_h profile,
@@ -65,12 +64,13 @@ static int update_ip_info(connection_profile_h profile,
             g_guest_ip);
     if (rv != CONNECTION_ERROR_NONE)
         return -1;
-    LOGINFO("update IP address to %s\n", g_guest_ip);
+    LOGINFO("update IP address to %s", g_guest_ip);
+
     rv = connection_profile_set_subnet_mask(profile,
             address_family,
             g_guest_subnet);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update subnet: %s\n", g_guest_subnet);
+        LOGERR("Fail to update subnet: %s", g_guest_subnet);
         return -1;
     }
 
@@ -78,7 +78,7 @@ static int update_ip_info(connection_profile_h profile,
             address_family,
             g_guest_gw);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update gateway: %s\n", g_guest_gw);
+        LOGERR("Fail to update gateway: %s", g_guest_gw);
         return -1;
     }
 
@@ -87,7 +87,7 @@ static int update_ip_info(connection_profile_h profile,
             address_family,
             g_guest_dns);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update dns: %s\n", g_guest_dns);
+        LOGERR("Fail to update dns: %s", g_guest_dns);
         return -1;
     }
 
@@ -96,7 +96,7 @@ static int update_ip_info(connection_profile_h profile,
 
 static void ip_changed_cb(const char* ipv4_address, const char* ipv6_address, void* user_data)
 {
-    LOGINFO("IP changed callback, IPv4 address : %s, IPv6 address : %s\n",
+    LOGINFO("IP changed callback, IPv4 address : %s, IPv6 address : %s",
             ipv4_address, (ipv6_address ? ipv6_address : "NULL"));
     strcpy(g_guest_ip, ipv4_address);
     send_guest_ip_req();
@@ -129,41 +129,41 @@ static bool get_profile()
 
     rv = connection_get_profile_iterator(connection, CONNECTION_ITERATOR_TYPE_REGISTERED, &profile_iter);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to get profile iterator [%d]\n", rv);
+        LOGERR("Fail to get profile iterator [%d]", rv);
         return false;
     }
 
     while (connection_profile_iterator_has_next(profile_iter)) {
         if (connection_profile_iterator_next(profile_iter, &profile_h) != CONNECTION_ERROR_NONE) {
-            LOGERR("Fail to get profile handle\n");
+            LOGERR("Fail to get profile handle");
             return false;
         }
 
         if (connection_profile_get_name(profile_h, &profile_name) != CONNECTION_ERROR_NONE) {
-            LOGERR("Fail to get profile name\n");
+            LOGERR("Fail to get profile name");
             return false;
         }
-        LOGINFO("profile_name: %s\n", profile_name);
+        LOGINFO("profile_name: %s", profile_name);
 
         if (connection_profile_get_type(profile_h, &profile_type) != CONNECTION_ERROR_NONE) {
-            LOGERR("Fail to get profile type\n");
+            LOGERR("Fail to get profile type");
             g_free(profile_name);
             return false;
         }
 
         if (connection_profile_get_state(profile_h, &profile_state) != CONNECTION_ERROR_NONE) {
-            LOGERR("Fail to get profile state\n");
+            LOGERR("Fail to get profile state");
             g_free(profile_name);
             return false;
         }
 
         if (profile_type == CONNECTION_PROFILE_TYPE_ETHERNET) {
-            LOGINFO("[%s] : %s\n", print_state(profile_state), profile_name);
+            LOGINFO("[%s] : %s", print_state(profile_state), profile_name);
             profile = profile_h;
             return true;
         }
     }
-    LOGERR("Fail to get ethernet profile!\n");
+    LOGERR("Fail to get ethernet profile!");
     return false;
 }
 
@@ -171,28 +171,20 @@ static bool get_profile()
 static int update_network_info(connection_profile_h profile)
 {
     int rv = 0;
-    char *interface_name;
     rv = connection_profile_set_ip_config_type(profile,
             CONNECTION_ADDRESS_FAMILY_IPV4,
             CONNECTION_IP_CONFIG_TYPE_STATIC);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Failed to connection_profile_set_ip_config_type() : %d\n", rv);
+        LOGERR("Failed to connection_profile_set_ip_config_type() : %d", rv);
         return -1;
     }
 
-    rv = connection_profile_get_network_interface_name(profile, &interface_name);
-    if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Failed to get interface name: %d\n", rv);
-        return -1;
-    }
-
-    LOGINFO("interface name: %s\n", interface_name);
     if (update_ip_info(profile, CONNECTION_ADDRESS_FAMILY_IPV4) == -1)
         return -1;
 
     rv = connection_update_profile(connection, profile);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Failed to update profile: %d\n", rv);
+        LOGERR("Failed to update profile: %d", rv);
         return -1;
     }
     send_guest_ip_req();
@@ -215,21 +207,19 @@ static int update_connection()
 
     return 1;
 }
-
 static void send_guest_ip_req(void)
 {
-    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
-    if (packet == NULL){
+    LXT_MESSAGE *packet = (LXT_MESSAGE *)calloc(1 ,sizeof(LXT_MESSAGE));
+    if (packet == NULL) {
         return;
     }
-    memset(packet, 0, sizeof(LXT_MESSAGE));
 
     packet->length = strlen(g_guest_ip);
     packet->group = 0;
-    packet->action = 15;
+    packet->action = STATUS;
 
     const int tmplen = HEADER_SIZE + packet->length;
-    char* tmp = (char*) malloc(tmplen);
+    char *tmp = (char *)malloc(tmplen);
     if (!tmp) {
         if (packet)
             free(packet);
@@ -239,6 +229,7 @@ static void send_guest_ip_req(void)
     memcpy(tmp, packet, HEADER_SIZE);
     memcpy(tmp + HEADER_SIZE, g_guest_ip, packet->length);
 
+    LOGINFO("send guest IP to host");
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_GUESTIP, (const char*) tmp, tmplen);
 
 
@@ -257,7 +248,7 @@ void *g_main_thread_cb(void *arg)
         LOGINFO("connection_create() success!: [%p]", connection);
         connection_set_ip_address_changed_cb(connection, ip_changed_cb, NULL);
     } else {
-        LOGERR("Client registration failed %d\n", err);
+        LOGERR("Client registration failed %d", err);
         return NULL;
     }
     get_guest_addr();
@@ -267,10 +258,10 @@ void *g_main_thread_cb(void *arg)
 
 int register_connection()
 {
-    LOGINFO("register_connection\n");
+    LOGINFO("register_connection");
 
     if(pthread_create(&g_main_thread, NULL, g_main_thread_cb, NULL) != 0) {
-        LOGERR("fail to create g_main_thread!\n");
+        LOGERR("fail to create g_main_thread!");
         return -1;
     }
     return 1;
@@ -302,7 +293,7 @@ static char *s_strncpy(char *dest, const char *source, size_t n)
 }
 
 
-static int get_str_cmdline(char *src, char *dest, char str[], int str_size)
+static int get_str_cmdline(char *src, const char *dest, char str[], int str_size)
 {
     char *s = strstr(src, dest);
     if (s == NULL) {
@@ -316,7 +307,7 @@ static int get_str_cmdline(char *src, char *dest, char str[], int str_size)
     int len = e-s-strlen(dest);
 
     if (len >= str_size) {
-        LOGERR("buffer size(%d) should be bigger than %d\n", str_size, len+1);
+        LOGERR("buffer size(%d) should be bigger than %d", str_size, len+1);
         return -1;
     }
 
@@ -332,19 +323,21 @@ static int get_network_info(char str[], int str_size)
     FILE *fp = fopen(PROC_CMDLINE_PATH, "r");
 
     if (fp == NULL) {
-        LOGERR("fail to read /proc/cmdline\n");
+        LOGERR("fail to read /proc/cmdline");
         return -1;
     }
-    while((read = getline(&line, &len, fp)) != -1) {
-        LOGINFO("line: %s\n", line);
-        LOGINFO("len: %d\n", len);
+    while ((read = getline(&line, &len, fp)) != -1) {
+        LOGINFO("line: %s", line);
+        LOGINFO("len: %d", len);
     }
     if (get_str_cmdline(line, IP_SUFFIX, str, str_size) < 1) {
-        LOGINFO("could not get the (%s) value from cmdline\n", IP_SUFFIX);
+        LOGINFO("could not get the (%s) value from cmdline. static ip does not set.", IP_SUFFIX);
+        use_dynamic_ip = true;
         fclose(fp);
         return -1;
     }
     fclose(fp);
+    LOGINFO("succeeded to get guest_net: %s", str);
     return 0;
 }
 
@@ -353,7 +346,7 @@ void get_guest_addr()
     int fd;
     struct ifreq ifrq;
     struct sockaddr_in *sin;
-    char guest_net[256] = {0,};
+    char guest_net[1024] = {0,};
     if (get_network_info(guest_net, sizeof guest_net) == 0) {
         char *token;
         int i = 0;
@@ -362,7 +355,7 @@ void get_guest_addr()
             if (i == 0) {
                 memset(&g_guest_ip[0], 0, sizeof(g_guest_ip));
                 strncpy(g_guest_ip, token, strlen(token));
-                LOGINFO("set guest_ip: %s\n", g_guest_ip);
+                LOGINFO("set guest_ip: %s", g_guest_ip);
             } else if(i == 2) {
                 strncpy(g_guest_gw, token, strlen(token));
             } else if(i == 3) {
@@ -370,32 +363,40 @@ void get_guest_addr()
             } else if(i == 7) {
                 strncpy(g_guest_dns, token, strlen(token));
             }
-            LOGINFO("token[%d]: %s\n",i++, token);
+            LOGINFO("token[%d]: %s",i++, token);
         }
         free(str);
     } else {
-        fd = socket (AF_INET, SOCK_DGRAM, 0);
+        LOGINFO("try to get guest ip from eth0");
+        fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (fd < 0)
         {
-            perror("Socket open error");
+            LOGERR("Socket open error");
             return;
         }
         strcpy(ifrq.ifr_name, "eth0");
-        if (ioctl(fd, SIOCGIFADDR, &ifrq) < 0)
+        while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0)
         {
-            perror("IPADDR Error");
-            close(fd);
-            return;
+            sleep(0.5);
         }
         sin = (struct sockaddr_in *)&ifrq.ifr_addr;
-        LOGINFO("IPADDR : %s\n", inet_ntoa(sin->sin_addr));
+        LOGINFO("IPADDR : %s", inet_ntoa(sin->sin_addr));
         strncpy(g_guest_ip,  inet_ntoa(sin->sin_addr), strlen(inet_ntoa(sin->sin_addr)));
-        LOGINFO("set guest_ip: %s\n", g_guest_ip);
+        LOGINFO("set guest_ip: %s", g_guest_ip);
 
         close(fd);
+        send_guest_ip_req();
     }
-    if (update_connection() == 1) {
-        LOGINFO("Succeed to update connection\n");
+    if (!use_dynamic_ip) {
+        if (update_connection() == 1) {
+            LOGINFO("Succeed to update connection");
+        } else {
+            LOGERR("failed to update connection");
+        }
+    } else {
+        LOGINFO("use dynamic IP. do not need update network information.");
     }
+
+    send_emuld_connection();
 }
 

@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.8.5
+Version: 0.9.5
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -26,11 +26,17 @@ A emulator daemon is used for communication between guest and host
 %prep
 %setup -q
 
-#%if "%{?tizen_profile_name}" == "mobile"
+%if "%{?profile}" == "mobile"
 export CFLAGS+=" -DMOBILE"
-#%elseif "%{?tizen_profile_name}" == "wearable"
-#export CFLAGS+=" -DWEARABLE"
-#%endif
+%else
+%if "%{?profile}" == "wearable"
+export CFLAGS+=" -DWEARABLE"
+%else
+%if "%{?profile}" == "tv"
+export CFLAGS+=" -DTV"
+%endif
+%endif
+%endif
 
 cmake . -DCMAKE_INSTALL_PREFIX=%{_prefix}
 
@@ -41,6 +47,7 @@ make
 %install
 rm -rf %{buildroot}
 
+# for systemd
 if [ ! -d %{buildroot}/usr/lib/systemd/system/emulator.target.wants ]; then
     mkdir -p %{buildroot}/usr/lib/systemd/system/emulator.target.wants
 fi
@@ -48,6 +55,10 @@ fi
 cp emuld.service %{buildroot}/usr/lib/systemd/system/.
 ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
 
+# for host file sharing
+mkdir -p %{buildroot}/mnt/host
+
+# for license
 mkdir -p %{buildroot}/usr/share/license
 cp LICENSE %{buildroot}/usr/share/license/%{name}
 
@@ -71,5 +82,6 @@ chmod 770 %{_prefix}/bin/emuld
 /usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service
 /usr/lib/systemd/system/emulator.target.wants/emuld.service
+%dir /mnt/host
 
 %changelog

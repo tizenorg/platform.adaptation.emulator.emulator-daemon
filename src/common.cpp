@@ -1,7 +1,7 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
  * Jinhyung Choi <jinhyung2.choi@samsnung.com>
@@ -30,14 +30,24 @@
 #include <sys/time.h>
 #include <sys/reboot.h>
 #include <sys/ioctl.h>
+#include <sys/mount.h>
 #include <stdio.h>
 #include <unistd.h>
-
-#include "emuld.h"
-//#include "deviced/dd-display.h"
+#include <errno.h>
+#include <utility>
 
 #include <E_DBus.h>
 #include <Ecore.h>
+
+#include <dirent.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <mntent.h>
+
+#include <vconf-keys.h>
+
+#include "emuld.h"
+#include "dd-display.h"
 
 #define PMAPI_RETRY_COUNT   3
 #define POWEROFF_DURATION   2
@@ -46,13 +56,48 @@
 #define SUSPEND_LOCK        1
 
 #define MAX_PKGS_BUF        1024
+#define MAX_DATA_BUF        1024
 
 #define PATH_PACKAGE_INSTALL    "/opt/usr/apps/tmp/sdk_tools/"
 #define RPM_CMD_QUERY       "-q"
 #define RPM_CMD_INSTALL     "-U"
 static pthread_mutex_t mutex_pkg = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 
 static struct timeval tv_start_poweroff;
+
+static std::multimap<int, std::string> vconf_multimap;
+
+void add_vconf_map(VCONF_TYPE key, std::string value)
+{
+    vconf_multimap.insert(std::pair<int, std::string>(key, value));
+}
+
+void add_vconf_map_common(void)
+{
+    /* location */
+    add_vconf_map(LOCATION, VCONF_REPLAYMODE);
+    add_vconf_map(LOCATION, VCONF_FILENAME);
+    add_vconf_map(LOCATION, VCONF_MLATITUDE);
+    add_vconf_map(LOCATION, VCONF_MLONGITUDE);
+    add_vconf_map(LOCATION, VCONF_MALTITUDE);
+    add_vconf_map(LOCATION, VCONF_MHACCURACY);
+
+    /* memory */
+    add_vconf_map(MEMORY, VCONF_LOW_MEMORY);
+}
+
+bool check_possible_vconf_key(std::string key)
+{
+    std::multimap<int, std::string>::iterator it;
+    for(it = vconf_multimap.begin(); it != vconf_multimap.end(); it++) {
+        if (it->second.compare(key) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void systemcall(const char* param)
 {
@@ -121,7 +166,6 @@ void msgproc_system(ijcommand* ijcmd)
 }
 
 static void set_lock_state(int state) {
-#if 0
     int i = 0;
     int ret = 0;
     // Now we blocking to enter "SLEEP".
@@ -138,7 +182,6 @@ static void set_lock_state(int state) {
     if (i == PMAPI_RETRY_COUNT) {
         LOGERR("Emulator Daemon: Failed to call display_lock_state().\n");
     }
-#endif
 }
 
 void msgproc_suspend(ijcommand* ijcmd)
@@ -188,54 +231,37 @@ void send_default_suspend_req(void)
     send_to_ecs(IJTYPE_SUSPEND, 5, 15, NULL);
 }
 
-static bool do_validate(char* pkgs)
+static bool do_rpm_execute(char* pkgs)
 {
     char buf[MAX_PKGS_BUF];
+    int ret = 0;
 
     FILE* fp = popen(pkgs, "r");
     if (fp == NULL) {
-        LOGERR("Failed to popen %s", pkgs);
+        LOGERR("[rpm] Failed to popen %s", pkgs);
         return false;
     }
 
     memset(buf, 0, sizeof(buf));
     while(fgets(buf, sizeof(buf), fp)) {
         LOGINFO("[rpm]%s", buf);
-        if (!strncmp(buf, IJTYPE_PACKAGE, 7)) {
-            pclose(fp);
-            return false;
-        }
         memset(buf, 0, sizeof(buf));
     }
 
-    pclose(fp);
-    return true;
-}
-
-static bool do_install(char* pkgs)
-{
-    char buf[MAX_PKGS_BUF];
-    bool ret = true;
-
-    FILE* fp = popen(pkgs, "r");
-    if (fp == NULL) {
-        LOGERR("Failed to popen %s", pkgs);
+    ret = pclose(fp);
+    if (ret == -1) {
+        LOGINFO("[rpm] pclose error: %d", errno);
         return false;
     }
 
-    memset(buf, 0, sizeof(buf));
-    while(fgets(buf, sizeof(buf), fp)) {
-        LOGINFO("[rpm] %s", buf);
-
-        if (!strncmp(buf, "error", 5)) {
-            ret = false;
-        }
-        memset(buf, 0, sizeof(buf));
+    if (ret >= 0 && WIFEXITED(ret) && WEXITSTATUS(ret) == 0) {
+        LOGINFO("[rpm] RPM execution success: %s", pkgs);
+        return true;
     }
 
-    pclose(fp);
+    LOGINFO("[rpm] RPM execution fail: [%x,%x,%x] %s", ret, WIFEXITED(ret), WEXITSTATUS(ret), pkgs);
 
-    return ret;
+    return false;
 }
 
 static void remove_package(char* data)
@@ -306,10 +332,8 @@ static bool do_package(int action, char* data)
     strcat(pkg_list, " ");
     strcat(pkg_list, "2>&1");
 
-    LOGINFO("[cmd]%s", pkg_list);
-    if (action == 1 && do_validate(pkg_list)) {
-        return true;
-    } else if (action == 2 && do_install(pkg_list)) {
+    LOGINFO("[cmd] %s", pkg_list);
+    if ((action == 1 || action == 2) && do_rpm_execute(pkg_list)) {
         return true;
     }
 
@@ -405,6 +429,22 @@ static void boot_done(void *data, DBusMessage *msg)
     }
 }
 
+static void sig_handler(int signo)
+{
+    LOGINFO("received signal: %d. EXIT!", signo);
+    _exit(0);
+}
+
+static void add_sig_handler(int signo)
+{
+    sighandler_t sig;
+
+    sig = signal(signo, sig_handler);
+    if (sig == SIG_ERR) {
+        LOGERR("adding %d signal failed : %d", signo, errno);
+    }
+}
+
 void* dbus_booting_done_check(void* data)
 {
     E_DBus_Connection *connection;
@@ -438,6 +478,10 @@ void* dbus_booting_done_check(void* data)
     }
     LOGINFO("[DBUS] signal handler is added.");
 
+    add_sig_handler(SIGINT);
+    add_sig_handler(SIGTERM);
+    add_sig_handler(SIGUSR1);
+
     ecore_main_loop_begin();
 
     e_dbus_signal_handler_del(connection, boot_handler);
@@ -447,3 +491,1015 @@ void* dbus_booting_done_check(void* data)
     return NULL;
 }
 
+char SDpath[256];
+
+// Location
+#define LOCATION_STATUS     120
+char command[512];
+
+/*
+ * SD Card functions
+ */
+
+static char* get_mount_info() {
+    struct mntent *ent;
+    FILE *aFile;
+
+    aFile = setmntent("/proc/mounts", "r");
+    if (aFile == NULL) {
+        LOGERR("/proc/mounts is not exist");
+        return NULL;
+    }
+    char* mountinfo = new char[512];
+    memset(mountinfo, 0, 512);
+
+    while (NULL != (ent = getmntent(aFile))) {
+
+        if (strcmp(ent->mnt_dir, "/opt/storage/sdcard") == 0)
+        {
+            LOGDEBUG(",%s,%s,%d,%s,%d,%s",
+                            ent->mnt_fsname, ent->mnt_dir, ent->mnt_freq, ent->mnt_opts, ent->mnt_passno, ent->mnt_type);
+            sprintf(mountinfo,",%s,%s,%d,%s,%d,%s\n",
+                            ent->mnt_fsname, ent->mnt_dir, ent->mnt_freq, ent->mnt_opts, ent->mnt_passno, ent->mnt_type);
+            break;
+        }
+    }
+    endmntent(aFile);
+
+    return mountinfo;
+}
+
+int is_mounted()
+{
+    int ret = -1, i = 0;
+    struct stat buf;
+    char file_name[128];
+    memset(file_name, '\0', sizeof(file_name));
+
+    for(i = 0; i < 10; i++)
+    {
+        sprintf(file_name, "/dev/mmcblk%d", i);
+        ret = access(file_name, F_OK);
+        if( ret == 0 )
+        {
+            lstat(file_name, &buf);
+            if(S_ISBLK(buf.st_mode))
+                return 1;
+            else
+                return 0;
+        }
+    }
+
+    return 0;
+}
+
+void* mount_sdcard(void* data)
+{
+    int ret = -1, i = 0;
+    struct stat buf;
+    char file_name[128], command[256];
+    memset(file_name, '\0', sizeof(file_name));
+    memset(command, '\0', sizeof(command));
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+
+    LOGINFO("start sdcard mount thread");
+
+    pthread_detach(pthread_self());
+
+    while (ret < 0)
+    {
+        for (i = 0; i < 10; i++)
+        {
+            sprintf(file_name, "/dev/mmcblk%d", i);
+            ret = access( file_name, F_OK );
+            if( ret == 0 )
+            {
+                lstat(file_name, &buf);
+                if(!S_ISBLK(buf.st_mode))
+                {
+                    sprintf(command, "rm -rf %s", file_name);
+                    systemcall(command);
+                }
+                else
+                    break;
+            }
+        }
+
+        if (i != 10)
+        {
+            LOGDEBUG( "%s is exist", file_name);
+            packet->length = strlen(SDpath);        // length
+            packet->group = 11;             // sdcard
+            if (ret == 0)
+                packet->action = 1; // mounted
+            else
+                packet->action = 5; // failed
+
+            //
+            LOGDEBUG("SDpath is %s", SDpath);
+
+            const int tmplen = HEADER_SIZE + packet->length;
+            char* tmp = (char*) malloc(tmplen);
+
+            if (tmp)
+            {
+                memcpy(tmp, packet, HEADER_SIZE);
+                if (packet->length > 0)
+                {
+                    memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
+                }
+
+                ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
+
+                free(tmp);
+            }
+
+            break;
+        }
+        else
+        {
+            LOGERR( "%s is not exist", file_name);
+        }
+    }
+
+    if(packet)
+    {
+        free(packet);
+        packet = NULL;
+    }
+
+    pthread_exit((void *) 0);
+}
+
+static int umount_sdcard(void)
+{
+    int ret = -1, i = 0;
+    char file_name[128];
+    memset(file_name, '\0', sizeof(file_name));
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+    if(packet == NULL){
+        return ret;
+    }
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+
+    LOGINFO("start sdcard umount");
+
+    pthread_cancel(tid[TID_SDCARD]);
+
+    for (i = 0; i < 10; i++)
+    {
+        sprintf(file_name, "/dev/mmcblk%d", i);
+        ret = access(file_name, F_OK);
+        if (ret == 0)
+        {
+            LOGDEBUG("SDpath is %s", SDpath);
+
+            packet->length = strlen(SDpath);        // length
+            packet->group = 11;                     // sdcard
+            packet->action = 0;                     // unmounted
+
+            const int tmplen = HEADER_SIZE + packet->length;
+            char* tmp = (char*) malloc(tmplen);
+            if (!tmp)
+                break;
+
+            memcpy(tmp, packet, HEADER_SIZE);
+            memcpy(tmp + HEADER_SIZE, SDpath, packet->length);
+
+            ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
+
+            free(tmp);
+
+            memset(SDpath, '\0', sizeof(SDpath));
+            sprintf(SDpath, "umounted");
+
+            break;
+        }
+        else
+        {
+            LOGERR( "%s is not exist", file_name);
+        }
+    }
+
+    if(packet){
+        free(packet);
+        packet = NULL;
+    }
+    return ret;
+}
+
+
+void msgproc_sdcard(ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_sdcard");
+
+    const int tmpsize = ijcmd->msg.length;
+
+    char token[] = "\n";
+    char tmpdata[tmpsize];
+    memcpy(tmpdata, ijcmd->data, tmpsize);
+
+    char* ret = NULL;
+    ret = strtok(tmpdata, token);
+
+    LOGDEBUG("%s", ret);
+
+    int mount_val = atoi(ret);
+    int mount_status = 0;
+
+    switch (mount_val)
+    {
+        case 0:                         // umount
+            {
+                mount_status = umount_sdcard();
+            }
+            break;
+        case 1:                         // mount
+            {
+                memset(SDpath, '\0', sizeof(SDpath));
+                ret = strtok(NULL, token);
+                strncpy(SDpath, ret, strlen(ret));
+                LOGDEBUG("sdcard path is %s", SDpath);
+
+                if (pthread_create(&tid[TID_SDCARD], NULL, mount_sdcard, NULL) != 0)
+                    LOGERR("mount sdcard pthread create fail!");
+            }
+
+            break;
+        case 2:                         // mount status
+            {
+                mount_status = is_mounted();
+                LXT_MESSAGE* mntData = (LXT_MESSAGE*) malloc(sizeof(LXT_MESSAGE));
+                if (mntData == NULL)
+                {
+                    break;
+                }
+                memset(mntData, 0, sizeof(LXT_MESSAGE));
+
+                mntData->length = strlen(SDpath);   // length
+                mntData->group = 11;            // sdcard
+
+                LOGDEBUG("SDpath is %s", SDpath);
+
+                switch (mount_status)
+                {
+                    case 0:
+                        {
+                            mntData->action = 2;            // umounted status
+
+                            const int tmplen = HEADER_SIZE + mntData->length;
+                            char* tmp = (char*) malloc(tmplen);
+
+                            if (tmp)
+                            {
+                                memcpy(tmp, mntData, HEADER_SIZE);
+                                if (mntData->length > 0)
+                                {
+                                    memcpy(tmp + HEADER_SIZE, SDpath, mntData->length);
+                                }
+
+                                ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
+
+                                free(tmp);
+                            }
+
+                            memset(SDpath, '\0', sizeof(SDpath));
+                            sprintf(SDpath, "umounted");
+                        }
+                        break;
+                    case 1:
+                        {
+                            mntData->action = 3;            // mounted status
+
+                            int mountinfo_size = 0;
+                            char* mountinfo = get_mount_info();
+                            if (mountinfo)
+                            {
+                                mountinfo_size = strlen(mountinfo);
+                            }
+
+                            const int tmplen = HEADER_SIZE + mntData->length + mountinfo_size;
+                            char* tmp = (char*) malloc(tmplen);
+
+                            if (tmp)
+                            {
+                                memcpy(tmp, mntData, HEADER_SIZE);
+                                if (mntData->length > 0)
+                                {
+                                    memcpy(tmp + HEADER_SIZE, SDpath, mntData->length);
+                                }
+
+                                if (mountinfo)
+                                {
+                                    memcpy(tmp + HEADER_SIZE + mntData->length, mountinfo, mountinfo_size);
+                                    mntData->length += mountinfo_size;
+                                    memcpy(tmp, mntData, HEADER_SIZE);
+                                    free(mountinfo);
+                                }
+
+                                ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_SDCARD, (const char*) tmp, tmplen);
+
+                                free(tmp);
+                            } else {
+                                if (mountinfo) {
+                                    free(mountinfo);
+                                }
+                            }
+                        }
+                        break;
+                    default:
+                        break;
+                }
+                free(mntData);
+            }
+            break;
+        default:
+            LOGERR("unknown data %s", ret);
+            break;
+    }
+}
+
+void* exec_cmd_thread(void *args)
+{
+    char *command = (char*)args;
+
+    systemcall(command);
+    LOGDEBUG("executed cmd: %s", command);
+    free(command);
+
+    pthread_exit(NULL);
+}
+
+void msgproc_cmd(ijcommand* ijcmd)
+{
+    _auto_mutex _(&mutex_cmd);
+    pthread_t cmd_thread_id;
+    char *cmd = (char*) malloc(ijcmd->msg.length + 1);
+
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
+    strncpy(cmd, ijcmd->data, ijcmd->msg.length);
+    LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
+
+    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0) {
+        LOGERR("cmd pthread create fail!");
+    }
+}
+
+int get_vconf_status(char** value, vconf_t type, const char* key)
+{
+    if (type == VCONF_TYPE_INT) {
+        int status;
+        int ret = vconf_get_int(key, &status);
+        if (ret != 0) {
+            LOGERR("cannot get vconf key - %s", key);
+            return 0;
+        }
+
+        ret = asprintf(value, "%d", status);
+        if (ret == -1) {
+            LOGERR("insufficient memory available");
+            return 0;
+        }
+    } else if (type == VCONF_TYPE_DOUBLE) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_STRING) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_BOOL) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else if (type == VCONF_TYPE_DIR) {
+        LOGERR("not implemented");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    } else {
+        LOGERR("undefined vconf type");
+        assert(type == VCONF_TYPE_INT);
+        return 0;
+    }
+
+    return strlen(*value);
+}
+
+static void* get_vconf_value(void* data)
+{
+    pthread_detach(pthread_self());
+
+    char *value = NULL;
+    vconf_res_type *vrt = (vconf_res_type*)data;
+
+    if (!check_possible_vconf_key(vrt->vconf_key)) {
+        LOGERR("%s is not available key.");
+    } else {
+        int length = get_vconf_status(&value, vrt->vconf_type, vrt->vconf_key);
+        if (length == 0 || !value) {
+            LOGERR("send error message to injector");
+            send_to_ecs(IJTYPE_VCONF, vrt->group, STATUS, NULL);
+        } else {
+            LOGDEBUG("send data to injector");
+            send_to_ecs(IJTYPE_VCONF, vrt->group, STATUS, value);
+            free(value);
+        }
+    }
+
+    free(vrt->vconf_key);
+    free(vrt);
+
+    pthread_exit((void *) 0);
+}
+
+static void* set_vconf_value(void* data)
+{
+    pthread_detach(pthread_self());
+
+    vconf_res_type *vrt = (vconf_res_type*)data;
+
+    if (!check_possible_vconf_key(vrt->vconf_key)) {
+        LOGERR("%s is not available key.");
+    } else {
+        keylist_t *get_keylist;
+        keynode_t *pkey_node = NULL;
+        get_keylist = vconf_keylist_new();
+        if (!get_keylist) {
+            LOGERR("vconf_keylist_new() failed");
+        } else {
+            vconf_get(get_keylist, vrt->vconf_key, VCONF_GET_ALL);
+            int ret = vconf_keylist_lookup(get_keylist, vrt->vconf_key, &pkey_node);
+            if (ret == 0) {
+                LOGERR("%s key not found", vrt->vconf_key);
+            } else {
+                if (vconf_keynode_get_type(pkey_node) != vrt->vconf_type) {
+                    LOGERR("inconsistent type (prev: %d, new: %d)",
+                                vconf_keynode_get_type(pkey_node), vrt->vconf_type);
+                }
+            }
+            vconf_keylist_free(get_keylist);
+        }
+
+        /* TODO: to be implemented another type */
+        if (vrt->vconf_type == VCONF_TYPE_INT) {
+            int val = atoi(vrt->vconf_val);
+            vconf_set_int(vrt->vconf_key, val);
+            LOGDEBUG("key: %s, val: %d", vrt->vconf_key, val);
+        } else if (vrt->vconf_type == VCONF_TYPE_DOUBLE) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_STRING) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_BOOL) {
+            LOGERR("not implemented");
+        } else if (vrt->vconf_type == VCONF_TYPE_DIR) {
+            LOGERR("not implemented");
+        } else {
+            LOGERR("undefined vconf type");
+        }
+    }
+
+    free(vrt->vconf_key);
+    free(vrt->vconf_val);
+    free(vrt);
+
+    pthread_exit((void *) 0);
+}
+
+void msgproc_vconf(ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_vconf");
+
+    const int tmpsize = ijcmd->msg.length;
+    char token[] = "\n";
+    char tmpdata[tmpsize];
+    memcpy(tmpdata, ijcmd->data, tmpsize);
+
+    char* ret = NULL;
+    ret = strtok(tmpdata, token);
+    if (!ret) {
+        LOGERR("vconf type is empty");
+        return;
+    }
+
+    vconf_res_type *vrt = (vconf_res_type*)malloc(sizeof(vconf_res_type));
+    if (!vrt) {
+        LOGERR("insufficient memory available");
+        return;
+    }
+
+    if (strcmp(ret, "int") == 0) {
+        vrt->vconf_type = VCONF_TYPE_INT;
+    } else if (strcmp(ret, "double") == 0) {
+        vrt->vconf_type = VCONF_TYPE_DOUBLE;
+    } else if (strcmp(ret, "string") == 0) {
+        vrt->vconf_type = VCONF_TYPE_STRING;
+    } else if (strcmp(ret, "bool") == 0) {
+        vrt->vconf_type = VCONF_TYPE_BOOL;
+    } else if (strcmp(ret, "dir") ==0) {
+        vrt->vconf_type = VCONF_TYPE_DIR;
+    } else {
+        LOGERR("undefined vconf type");
+        free(vrt);
+        return;
+    }
+
+    ret = strtok(NULL, token);
+    if (!ret) {
+        LOGERR("vconf key is empty");
+        free(vrt);
+        return;
+    }
+
+    vrt->vconf_key = (char*)malloc(strlen(ret) + 1);
+    if (!vrt->vconf_key) {
+        LOGERR("insufficient memory available");
+        free(vrt);
+        return;
+    }
+    sprintf(vrt->vconf_key, "%s", ret);
+
+    if (ijcmd->msg.action == VCONF_SET) {
+        ret = strtok(NULL, token);
+        if (!ret) {
+            LOGERR("vconf value is empty");
+            free(vrt->vconf_key);
+            free(vrt);
+            return;
+        }
+
+        vrt->vconf_val = (char*)malloc(strlen(ret) + 1);
+        if (!vrt->vconf_val) {
+            LOGERR("insufficient memory available");
+            free(vrt->vconf_key);
+            free(vrt);
+            return;
+        }
+        sprintf(vrt->vconf_val, "%s", ret);
+
+        if (pthread_create(&tid[TID_VCONF], NULL, set_vconf_value, (void*)vrt) != 0) {
+            LOGERR("set vconf pthread create fail!");
+            return;
+        }
+    } else if (ijcmd->msg.action == VCONF_GET) {
+        vrt->group = ijcmd->msg.group;
+        if (pthread_create(&tid[TID_VCONF], NULL, get_vconf_value, (void*)vrt) != 0) {
+            LOGERR("get vconf pthread create fail!");
+            return;
+        }
+    } else {
+        LOGERR("undefined action %d", ijcmd->msg.action);
+    }
+}
+
+/*
+ * Location function
+ */
+static char* get_location_status(void* p)
+{
+    int mode;
+    int ret = vconf_get_int("db/location/replay/ReplayMode", &mode);
+    if (ret != 0) {
+        return 0;
+    }
+
+    char* message = 0;
+
+    if (mode == 0)
+    { // STOP
+        message = (char*)malloc(5);
+        memset(message, 0, 5);
+
+        ret = sprintf(message, "%d", mode);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    }
+    else if (mode == 1)
+    { // NMEA MODE(LOG MODE)
+        char* temp = 0;
+        temp = (char*) vconf_get_str("db/location/replay/FileName");
+        if (temp == 0) {
+            //free(temp);
+            return 0;
+        }
+
+        message = (char*)malloc(256);
+        memset(message, 0, 256);
+        ret = sprintf(message, "%d,%s", mode, temp);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    } else if (mode == 2) { // MANUAL MODE
+        double latitude;
+        double logitude;
+        double altitude;
+        double accuracy;
+        ret = vconf_get_dbl("db/location/replay/ManualLatitude", &latitude);
+        if (ret != 0) {
+            return 0;
+        }
+        ret = vconf_get_dbl("db/location/replay/ManualLongitude", &logitude);
+        if (ret != 0) {
+            return 0;
+        }
+        ret = vconf_get_dbl("db/location/replay/ManualAltitude", &altitude);
+        if (ret != 0) {
+            return 0;
+        }
+         ret = vconf_get_dbl("db/location/replay/ManualHAccuracy", &accuracy);
+        if (ret != 0) {
+            return 0;
+        }
+
+        message = (char*)malloc(128);
+        memset(message, 0, 128);
+        ret = sprintf(message, "%d,%f,%f,%f,%f", mode, latitude, logitude, altitude, accuracy);
+        if (ret < 0) {
+            free(message);
+            message = 0;
+            return 0;
+        }
+    }
+
+    if (message) {
+        LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = strlen(message);
+        packet->group  = STATUS;
+        packet->action = LOCATION_STATUS;
+        return message;
+    } else {
+        return NULL;
+    }
+}
+
+static void* getting_location(void* data)
+{
+    pthread_detach(pthread_self());
+
+    setting_device_param* param = (setting_device_param*) data;
+
+    if (!param)
+        return 0;
+
+    char* msg = 0;
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+
+    switch(param->ActionID)
+    {
+        case LOCATION_STATUS:
+            msg = get_location_status((void*)packet);
+            if (msg == 0) {
+                LOGERR("failed getting location status");
+            }
+            break;
+        default:
+            LOGERR("Wrong action ID. %d", param->ActionID);
+        break;
+    }
+
+    if (msg == 0)
+    {
+        LOGDEBUG("send error message to injector");
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = 0;
+        packet->group = STATUS;
+        packet->action = param->ActionID;
+    }
+    else
+    {
+        LOGDEBUG("send data to injector");
+    }
+
+    const int tmplen = HEADER_SIZE + packet->length;
+    char* tmp = (char*) malloc(tmplen);
+    if (tmp)
+    {
+        memcpy(tmp, packet, HEADER_SIZE);
+        if (packet->length > 0)
+            memcpy(tmp + HEADER_SIZE, msg, packet->length);
+
+        ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
+
+        free(tmp);
+    }
+
+    if(msg != 0)
+    {
+        free(msg);
+        msg = 0;
+    }
+    if (packet != NULL) {
+        free(packet);
+    }
+    if (param)
+        delete param;
+
+    pthread_exit((void *) 0);
+}
+
+void setting_location(char* databuf)
+{
+    char* s = strchr(databuf, ',');
+    memset(command, 0, 256);
+    if (s == NULL) { // SET MODE
+        int mode = atoi(databuf);
+        switch (mode) {
+        case 0: // STOP MODE
+            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
+            break;
+        case 1: // NMEA MODE (LOG MODE)
+            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
+            break;
+        case 2: // MANUAL MODE
+            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2 -f");
+            break;
+        default:
+            LOGERR("error(%s) : stop replay mode", databuf);
+            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
+            break;
+        }
+        LOGDEBUG("Location Command : %s", command);
+        systemcall(command);
+    } else {
+        *s = '\0';
+        int mode = atoi(databuf);
+        if(mode == 1) { // NMEA MODE (LOG MODE)
+            sprintf(command, "vconftool set -t string db/location/replay/FileName \"%s\"", s+1);
+            LOGDEBUG("%s", command);
+            systemcall(command);
+            memset(command, 0, 256);
+            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
+            LOGDEBUG("%s", command);
+            systemcall(command);
+        } else if(mode == 2) {
+            char* ptr = strtok(s+1, ",");
+
+            // Latitude
+            sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+
+            // Longitude
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+
+            // Altitude
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualAltitude %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+
+            // accuracy
+            ptr = strtok(NULL, ",");
+            sprintf(command, "vconftool set -t double db/location/replay/ManualHAccuracy %s -f", ptr);
+            LOGINFO("%s", command);
+            systemcall(command);
+        }
+    }
+}
+
+void msgproc_location(ijcommand* ijcmd)
+{
+    LOGDEBUG("msgproc_location");
+    if (ijcmd->msg.group == STATUS)
+    {
+        setting_device_param* param = new setting_device_param();
+        if (!param)
+            return;
+
+        param->ActionID = ijcmd->msg.action;
+        memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
+
+        if (pthread_create(&tid[TID_LOCATION], NULL, getting_location, (void*) param) != 0)
+        {
+            LOGERR("location pthread create fail!");
+            return;
+        }
+    }
+    else
+    {
+        setting_location(ijcmd->data);
+    }
+}
+
+static char* make_header_msg(int group, int action)
+{
+    char *tmp = (char*) malloc(HEADER_SIZE);
+    if (!tmp)
+        return NULL;
+
+    memset(tmp, 0, HEADER_SIZE);
+
+    memcpy(tmp + 2, &group, 1);
+    memcpy(tmp + 3, &action, 1);
+
+    return tmp;
+}
+
+#define MSG_GROUP_HDS   100
+
+int try_mount(char* tag, char* path)
+{
+    int ret = 0;
+
+    ret = mount(tag, path, "9p", 0,
+                "trans=virtio,version=9p2000.L,msize=65536");
+    if (ret == -1)
+        return errno;
+
+    return ret;
+}
+
+static bool get_tag_path(char* data, char** tag, char** path)
+{
+    char token[] = "\n";
+
+    LOGINFO("get_tag_path data : %s", data);
+    *tag = strtok(data, token);
+    if (*tag == NULL) {
+        LOGERR("data does not have a correct tag: %s", data);
+        return false;
+    }
+
+    *path = strtok(NULL, token);
+    if (*path == NULL) {
+        LOGERR("data does not have a correct path: %s", data);
+        return false;
+    }
+
+    return true;
+}
+
+static void* mount_hds(void* args)
+{
+    int i, ret = 0;
+    char* tmp;
+    int action = 2;
+    char* tag;
+    char* path;
+    char* data = (char*)args;
+
+    LOGINFO("start hds mount thread");
+
+    pthread_detach(pthread_self());
+
+    if (!get_tag_path(data, &tag, &path)) {
+        free(data);
+        return NULL;
+    }
+
+    LOGINFO("tag : %s, path: %s", tag, path);
+    usleep(50000);
+
+    for (i = 0; i < 20; i++)
+    {
+        ret = try_mount(tag, path);
+        if(ret == 0) {
+            action = 1;
+            break;
+        } else {
+            LOGERR("%d trial: mount is failed with errno: %d", i, errno);
+        }
+        usleep(500000);
+    }
+
+    tmp = make_header_msg(MSG_GROUP_HDS, action);
+    if (!tmp) {
+        LOGERR("failed to alloc: out of resource.");
+        free(data);
+        return NULL;
+    }
+
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
+
+    free(data);
+    free(tmp);
+
+    return NULL;
+}
+
+static void* umount_hds(void* args)
+{
+    int ret = 0;
+    char* tmp;
+    int action = 3;
+    char* tag;
+    char* path;
+    char* data = (char*)args;
+
+    LOGINFO("unmount hds.");
+    pthread_detach(pthread_self());
+
+    if (!get_tag_path(data, &tag, &path)) {
+        LOGERR("wrong tag or path.");
+        free(data);
+        return NULL;
+    }
+
+    ret = umount(path);
+    if (ret != 0) {
+        LOGERR("unmount failed with error num: %d", errno);
+        action = 4;
+    }
+
+    tmp = make_header_msg(MSG_GROUP_HDS, action);
+    if (!tmp) {
+        LOGERR("failed to alloc: out of resource.");
+        free(data);
+        return NULL;
+    }
+
+    LOGINFO("send result with action %d to evdi", action);
+
+    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
+
+    free(data);
+    free(tmp);
+
+    return NULL;
+}
+
+#define COMPAT_DEFAULT_DATA     "fileshare\n/mnt/host\n"
+void msgproc_hds(ijcommand* ijcmd)
+{
+    char* data;
+    LOGDEBUG("msgproc_hds");
+
+    if (!strncmp(ijcmd->data, HDS_DEFAULT_PATH, 9)) {
+        LOGINFO("hds compatibility mode with %s", ijcmd->data);
+        data = strdup(COMPAT_DEFAULT_DATA);
+    } else {
+        data = strdup(ijcmd->data);
+    }
+
+    if (data == NULL) {
+        LOGERR("data dup is failed. out of memory.");
+        return;
+    }
+
+    LOGINFO("action: %d, data: %s", ijcmd->msg.action, data);
+    if (ijcmd->msg.action == 1) {
+        if (pthread_create(&tid[TID_HDS], NULL, mount_hds, (void*)data) != 0) {
+            LOGERR("mount hds pthread create fail!");
+            free(data);
+        }
+    } else if (ijcmd->msg.action == 2) {
+        pthread_cancel(tid[TID_HDS]);
+        if (pthread_create(&tid[TID_HDS], NULL, umount_hds, (void*)data) != 0) {
+            LOGERR("umount hds pthread create fail!");
+            free(data);
+        }
+    } else {
+        LOGERR("unknown action cmd.");
+        free(data);
+    }
+}
+
+static void low_memory_cb(keynode_t* pKey, void* pData)
+{
+    switch (vconf_keynode_get_type(pKey)) {
+        case VCONF_TYPE_INT:
+        {
+            int value = vconf_keynode_get_int(pKey);
+            LOGDEBUG("key = %s, value = %d(int)", vconf_keynode_get_name(pKey), value);
+            char *buf = (char*)malloc(sizeof(int));
+            if (!buf) {
+                LOGERR("insufficient memory available");
+                return;
+            }
+
+            sprintf(buf, "%d", vconf_keynode_get_int(pKey));
+            send_to_ecs(IJTYPE_VCONF, GROUP_MEMORY, STATUS, buf);
+
+            free(buf);
+            break;
+        }
+        default:
+            LOGERR("type mismatch in key: %s", vconf_keynode_get_name(pKey));
+            break;
+    }
+}
+
+void set_vconf_cb(void)
+{
+    int ret = 0;
+    ret = vconf_notify_key_changed(VCONF_LOW_MEMORY, low_memory_cb, NULL);
+    if (ret) {
+        LOGERR("vconf_notify_key_changed() failed");
+    }
+}

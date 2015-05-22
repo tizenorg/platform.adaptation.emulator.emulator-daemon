@@ -32,6 +32,15 @@
 
 #define TID_SENSOR          5
 
+#define IJTYPE_SENSOR       "sensor"
+
+#define VCONF_DBTAP      "memory/private/sensor/800004"
+#define VCONF_SHAKE      "memory/private/sensor/800002"
+#define VCONF_SNAP       "memory/private/sensor/800001"
+#define VCONF_MOVETOCALL "memory/private/sensor/800020"
+
+#define VCONF_RSSI       "memory/telephony/rssi"
+
 void msgproc_sensor(ijcommand* ijcmd);
 
 #endif

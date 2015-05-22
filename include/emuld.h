@@ -9,7 +9,7 @@
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
  * YeongKyoon Lee <yeongkyoon.lee@samsung.com>
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -21,7 +21,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  * Contributors:
  * - S-Core Co., Ltd
  *
@@ -31,11 +31,16 @@
 #ifndef __EMULD_H__
 #define __EMULD_H__
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
 #include <glib.h>
+#include <vconf.h>
+#include <iostream>
+#include <cassert>
+
 #include <map>
 
 #include "evdi.h"
@@ -55,12 +60,14 @@ enum
 #define MAX_GETCNT          10
 #define ID_SIZE             10
 #define HEADER_SIZE         4
+#define STATUS              15
 
 // Thread TID profile uses >= 5
 #define TID_BOOT            1
 #define TID_SDCARD          2
 #define TID_LOCATION        3
 #define TID_HDS             4
+#define TID_VCONF           6
 
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
@@ -182,8 +189,8 @@ bool accept_proc(const int server_fd);
 void get_guest_addr(void);
 int register_connection(void);
 void destroy_connection(void);
-void get_guest_addr(void);
 
+void set_vconf_cb(void);
 void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
 void send_default_suspend_req(void);
@@ -191,10 +198,20 @@ void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
+#define HDS_DEFAULT_TAG     "fileshare"
+#define HDS_DEFAULT_PATH    "/mnt/host"
+int try_mount(char* tag, char* path);
+
 #define IJTYPE_SUSPEND      "suspend"
+#define IJTYPE_HDS          "hds"
+#define IJTYPE_SYSTEM       "system"
 #define IJTYPE_GUEST        "guest"
+#define IJTYPE_CMD          "cmd"
 #define IJTYPE_PACKAGE      "package"
 #define IJTYPE_BOOT         "boot"
+#define IJTYPE_VCONF        "vconf"
+#define IJTYPE_LOCATION     "location"
+#define IJTYPE_SDCARD       "sdcard"
 
 void *g_main_thread_cb(void *arg);
 void msgproc_suspend(ijcommand* ijcmd);
@@ -205,13 +222,56 @@ void msgproc_location(ijcommand* ijcmd);
 void msgproc_sdcard(ijcommand* ijcmd);
 void* exec_cmd_thread(void *args);
 void msgproc_cmd(ijcommand* ijcmd);
+void msgproc_vconf(ijcommand* ijcmd);
+
+#define GROUP_MEMORY        30
+
+/* common vconf keys */
+#define VCONF_LOW_MEMORY    "memory/sysman/low_memory"
+#define VCONF_REPLAYMODE    "db/location/replay/ReplayMode"
+#define VCONF_FILENAME      "db/location/replay/FileName"
+#define VCONF_MLATITUDE     "db/location/replay/ManualLatitude"
+#define VCONF_MLONGITUDE    "db/location/replay/ManualLongitude"
+#define VCONF_MALTITUDE     "db/location/replay/ManualAltitude"
+#define VCONF_MHACCURACY    "db/location/replay/ManualHAccuracy"
+
+#define VCONF_SET 1
+#define VCONF_GET 0
+
+enum VCONF_TYPE {
+    SENSOR    = 0,
+    TELEPHONY = 1,
+    LOCATION  = 2,
+    TV        = 3,
+    MEMORY    = 4
+};
+
+struct vconf_res_type {
+    char *vconf_key;
+    char *vconf_val;
+    int group;
+    vconf_t vconf_type;
+};
+
+void add_vconf_map(VCONF_TYPE key, std::string value);
+void add_vconf_map_common(void);
+bool check_possible_vconf_key(std::string key);
 
 /*
  * For the multi-profile
  */
-void process_evdi_command(ijcommand* ijcmd);
-bool server_process(void);
-void init_profile(void);
-void exit_profile(void);
+bool extra_evdi_command(ijcommand* ijcmd);
+void add_vconf_map_profile(void);
+int get_vconf_status(char** value, vconf_t type, const char* key);
+
+static inline char* __tmpalloc(const int size)
+{
+    char* message = (char*)malloc(sizeof(char) * size);
+    if (!message) {
+        return NULL;
+    }
+    memset(message, 0, sizeof(char) * size);
+    return message;
+}
 
 #endif
