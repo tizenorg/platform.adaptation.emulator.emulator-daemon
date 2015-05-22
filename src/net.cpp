@@ -51,6 +51,7 @@ char g_guest_dns[64];
 connection_h connection = NULL;
 connection_profile_h profile;
 GMainLoop *mainloop;
+bool use_dynamic_ip = false;
 static void send_guest_ip_req(void);
 
 static int update_ip_info(connection_profile_h profile,
@@ -228,6 +229,7 @@ static void send_guest_ip_req(void)
     memcpy(tmp, packet, HEADER_SIZE);
     memcpy(tmp + HEADER_SIZE, g_guest_ip, packet->length);
 
+    LOGINFO("send guest IP to host");
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_GUESTIP, (const char*) tmp, tmplen);
 
 
@@ -329,11 +331,13 @@ static int get_network_info(char str[], int str_size)
         LOGINFO("len: %d", len);
     }
     if (get_str_cmdline(line, IP_SUFFIX, str, str_size) < 1) {
-        LOGINFO("could not get the (%s) value from cmdline. may use dhcp.", IP_SUFFIX);
+        LOGINFO("could not get the (%s) value from cmdline. static ip does not set.", IP_SUFFIX);
+        use_dynamic_ip = true;
         fclose(fp);
         return -1;
     }
     fclose(fp);
+    LOGINFO("succeeded to get guest_net: %s", str);
     return 0;
 }
 
@@ -342,7 +346,7 @@ void get_guest_addr()
     int fd;
     struct ifreq ifrq;
     struct sockaddr_in *sin;
-    char guest_net[256] = {0,};
+    char guest_net[1024] = {0,};
     if (get_network_info(guest_net, sizeof guest_net) == 0) {
         char *token;
         int i = 0;
@@ -363,6 +367,7 @@ void get_guest_addr()
         }
         free(str);
     } else {
+        LOGINFO("try to get guest ip from eth0");
         fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (fd < 0)
         {
@@ -382,10 +387,16 @@ void get_guest_addr()
         close(fd);
         send_guest_ip_req();
     }
-    if (update_connection() == 1) {
-        LOGINFO("Succeed to update connection");
+    if (!use_dynamic_ip) {
+        if (update_connection() == 1) {
+            LOGINFO("Succeed to update connection");
+        } else {
+            LOGERR("failed to update connection");
+        }
     } else {
-        LOGERR("failed to update connection");
+        LOGINFO("use dynamic IP. do not need update network information.");
     }
+
+    send_emuld_connection();
 }
 
