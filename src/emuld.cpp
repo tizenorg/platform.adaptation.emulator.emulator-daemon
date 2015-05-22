@@ -370,7 +370,6 @@ int main( int argc , char *argv[])
     add_vconf_map_profile();
     set_vconf_cb();
 
-    send_emuld_connection();
 
     send_default_suspend_req();
 
