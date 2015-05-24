@@ -194,12 +194,18 @@ void set_vconf_cb(void);
 void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
 void send_default_suspend_req(void);
+void send_default_mount_req(void);
 void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
+#define HDS_DEFAULT_ID      "fsdef0"
 #define HDS_DEFAULT_TAG     "fileshare"
 #define HDS_DEFAULT_PATH    "/mnt/host"
+#define COMPAT_DEFAULT_DATA "fileshare\n/mnt/host\n"
+#define HDS_ACTION_DEFAULT  99
+#define MSG_GROUP_HDS       100
+bool valid_hds_path(char* path);
 int try_mount(char* tag, char* path);
 
 #define IJTYPE_SUSPEND      "suspend"

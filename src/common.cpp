@@ -41,6 +41,7 @@
 
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <stdlib.h>
 #include <mntent.h>
 
@@ -63,6 +64,11 @@
 #define RPM_CMD_INSTALL     "-U"
 static pthread_mutex_t mutex_pkg = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
+
+static const char* hds_available_path [] = {
+    "/mnt/",
+    NULL,
+};
 
 static struct timeval tv_start_poweroff;
 
@@ -1297,22 +1303,6 @@ void msgproc_location(ijcommand* ijcmd)
     }
 }
 
-static char* make_header_msg(int group, int action)
-{
-    char *tmp = (char*) malloc(HEADER_SIZE);
-    if (!tmp)
-        return NULL;
-
-    memset(tmp, 0, HEADER_SIZE);
-
-    memcpy(tmp + 2, &group, 1);
-    memcpy(tmp + 3, &action, 1);
-
-    return tmp;
-}
-
-#define MSG_GROUP_HDS   100
-
 int try_mount(char* tag, char* path)
 {
     int ret = 0;
@@ -1345,10 +1335,54 @@ static bool get_tag_path(char* data, char** tag, char** path)
     return true;
 }
 
+static bool secure_hds_path(char* path) {
+    int index = 0;
+    int len = sizeof(hds_available_path);
+    for (index = 0; index < len; index++) {
+        if (!strncmp(path, hds_available_path[index], strlen(hds_available_path[index]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool valid_hds_path(char* path) {
+    struct stat buf;
+    int ret = -1;
+
+    ret = access(path, F_OK);
+    if (ret == -1) {
+        if (errno == ENOENT) {
+            ret = mkdir(path, 0644);
+            if (ret == -1) {
+                LOGERR("failed to create path : %d", errno);
+                return false;
+            }
+        } else {
+            LOGERR("failed to access path : %d", errno);
+            return false;
+        }
+    }
+
+    ret = lstat(path, &buf);
+    if (ret == -1) {
+        LOGERR("lstat is failed to validate path : %d", errno);
+        return false;
+    }
+
+    if (!S_ISDIR(buf.st_mode)) {
+        LOGERR("%s is not a directory.", path);
+        return false;
+    }
+
+    LOGINFO("check '%s' complete.", path);
+
+    return true;
+}
+
 static void* mount_hds(void* args)
 {
     int i, ret = 0;
-    char* tmp;
     int action = 2;
     char* tag;
     char* path;
@@ -1363,10 +1397,26 @@ static void* mount_hds(void* args)
         return NULL;
     }
 
-    LOGINFO("tag : %s, path: %s", tag, path);
-    usleep(50000);
+    if (!strncmp(tag, HDS_DEFAULT_ID, 6)) {
+        free(data);
+        return NULL;
+    }
 
-    for (i = 0; i < 20; i++)
+    if (!secure_hds_path(path)) {
+        send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 11, tag);
+        free(data);
+        return NULL;
+    }
+
+    if (!valid_hds_path(path)) {
+        send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 12, tag);
+        free(data);
+        return NULL;
+    }
+
+    LOGINFO("tag : %s, path: %s", tag, path);
+
+    for (i = 0; i < 10; i++)
     {
         ret = try_mount(tag, path);
         if(ret == 0) {
@@ -1378,17 +1428,9 @@ static void* mount_hds(void* args)
         usleep(500000);
     }
 
-    tmp = make_header_msg(MSG_GROUP_HDS, action);
-    if (!tmp) {
-        LOGERR("failed to alloc: out of resource.");
-        free(data);
-        return NULL;
-    }
-
-    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
+    send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, action, tag);
 
     free(data);
-    free(tmp);
 
     return NULL;
 }
@@ -1396,7 +1438,6 @@ static void* mount_hds(void* args)
 static void* umount_hds(void* args)
 {
     int ret = 0;
-    char* tmp;
     int action = 3;
     char* tag;
     char* path;
@@ -1417,24 +1458,18 @@ static void* umount_hds(void* args)
         action = 4;
     }
 
-    tmp = make_header_msg(MSG_GROUP_HDS, action);
-    if (!tmp) {
-        LOGERR("failed to alloc: out of resource.");
-        free(data);
-        return NULL;
-    }
+    ret = rmdir(path);
+    LOGINFO("remove path result '%d:%d' with %s", ret, errno, path);
+
+    send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, action, tag);
 
     LOGINFO("send result with action %d to evdi", action);
 
-    ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_HDS, (const char*) tmp, HEADER_SIZE);
-
     free(data);
-    free(tmp);
 
     return NULL;
 }
 
-#define COMPAT_DEFAULT_DATA     "fileshare\n/mnt/host\n"
 void msgproc_hds(ijcommand* ijcmd)
 {
     char* data;
@@ -1468,6 +1503,11 @@ void msgproc_hds(ijcommand* ijcmd)
         LOGERR("unknown action cmd.");
         free(data);
     }
+}
+
+void send_default_mount_req()
+{
+    send_to_ecs(IJTYPE_HDS, 0, 0, NULL);
 }
 
 static void low_memory_cb(keynode_t* pKey, void* pData)

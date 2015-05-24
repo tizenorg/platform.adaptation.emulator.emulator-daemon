@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.9.6
+Version: 0.9.7
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -54,9 +54,6 @@ fi
 cp emuld.service %{buildroot}/usr/lib/systemd/system/.
 ln -s ../emuld.service %{buildroot}/usr/lib/systemd/system/emulator.target.wants/emuld.service
 
-# for host file sharing
-mkdir -p %{buildroot}/mnt/host
-
 # for license
 mkdir -p %{buildroot}/usr/share/license
 cp LICENSE %{buildroot}/usr/share/license/%{name}
@@ -81,6 +78,5 @@ chmod 770 %{_prefix}/bin/emuld
 /usr/share/license/%{name}
 /usr/lib/systemd/system/emuld.service
 /usr/lib/systemd/system/emulator.target.wants/emuld.service
-%dir /mnt/host
 
 %changelog

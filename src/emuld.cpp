@@ -341,8 +341,7 @@ static bool server_process(void)
 
 int main( int argc , char *argv[])
 {
-    int conn_ret = -1;
-    int ret = 0;
+    int ret = -1;
 
     init_fd();
 
@@ -357,6 +356,8 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
+    ret = register_connection();
+
     send_default_suspend_req();
 
     if (pthread_create(&tid[TID_BOOT], NULL, dbus_booting_done_check, NULL) != 0)
@@ -366,14 +367,20 @@ int main( int argc , char *argv[])
     }
 
     LOGINFO("[START] epoll & device init success");
-    conn_ret = register_connection();
+
+    send_default_mount_req();
+
+    ret = valid_hds_path((char*)HDS_DEFAULT_PATH);
+    LOGINFO("check directory '/mnt/host' for default fileshare: %d", ret);
+    ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
+    LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
+    if (ret == 0) {
+        send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, HDS_ACTION_DEFAULT, (char*)HDS_DEFAULT_TAG);
+    }
 
     add_vconf_map_common();
     add_vconf_map_profile();
     set_vconf_cb();
-
-    ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
-    LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
 
     while(!exit_flag)
     {
@@ -381,7 +388,7 @@ int main( int argc , char *argv[])
     }
 
     stop_listen();
-    if (conn_ret == 1)
+    if (ret == 1)
     {
         LOGINFO("destroy connection");
         destroy_connection();
