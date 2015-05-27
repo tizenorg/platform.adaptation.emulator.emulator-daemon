@@ -357,6 +357,8 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
+    send_default_suspend_req();
+
     if (pthread_create(&tid[TID_BOOT], NULL, dbus_booting_done_check, NULL) != 0)
     {
         LOGERR("boot noti pthread create fail!");
@@ -369,9 +371,6 @@ int main( int argc , char *argv[])
     add_vconf_map_common();
     add_vconf_map_profile();
     set_vconf_cb();
-
-
-    send_default_suspend_req();
 
     ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
     LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
