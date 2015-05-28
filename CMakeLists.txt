@@ -36,19 +36,20 @@ IF(USE_D_MOBILE)
     SET(SRCS ${SRCS}
         src/mobile.cpp
     )
-ENDIF(USE_D_MOBILE)
 
-IF(USE_D_WEARABLE)
+ELSEIF(USE_D_WEARABLE)
     SET(SRCS ${SRCS}
         src/wearable.cpp
     )
-ENDIF(USE_D_WEARABLE)
-
-IF(USE_D_TV)
+ELSEIF(USE_D_TV)
     SET(SRCS ${SRCS}
         src/tv.cpp
     )
-ENDIF(USE_D_TV)
+ELSE(USE_D_MOBILE)
+    SET(SRCS ${SRCS}
+        src/stub.cpp
+    )
+ENDIF(USE_D_MOBILE)
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
 
