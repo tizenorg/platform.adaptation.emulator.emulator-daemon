@@ -305,7 +305,7 @@ void writelog(const char* fmt, ...)
     va_list args;
     va_start(args, fmt);
     vfprintf(logfile, fmt, args);
-    vfprintf(logfile, "\n", NULL);
+    fprintf(logfile, "\n");
     va_end(args);
     fclose(logfile);
 }
