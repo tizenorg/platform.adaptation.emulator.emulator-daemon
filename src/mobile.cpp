@@ -81,10 +81,14 @@ static void system_cmd(const char* msg)
     }
 }
 
-#define DBUS_SEND_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/SysNoti org.tizen.system.deviced.SysNoti."
-static void dbus_send(const char* device, const char* option)
+#define DBUS_SEND_PRE_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/"
+#define DBUS_SEND_MID_CMD   " org.tizen.system.deviced."
+#define DBUS_SEND_SYSNOTI   "SysNoti"
+#define DBUS_SEND_EXTCON    "ExtCon"
+static void dbus_send(const char* device, const char* target, const char* option)
 {
-    const char* dbus_send_cmd = DBUS_SEND_CMD;
+    const char* dbus_send_pre_cmd = DBUS_SEND_PRE_CMD;
+    const char* dbus_send_mid_cmd = DBUS_SEND_MID_CMD;
     char* cmd;
 
     if (device == NULL || option == NULL)
@@ -96,7 +100,7 @@ static void dbus_send(const char* device, const char* option)
 
     memset(cmd, 0, 512);
 
-    sprintf(cmd, "%s%s string:\"%s\" %s", dbus_send_cmd, device, device, option);
+    sprintf(cmd, "%s%s%s%s.%s string:\"%s\" %s", dbus_send_pre_cmd, target, dbus_send_mid_cmd, target, device, device, option);
 
     system_cmd(cmd);
     LOGINFO("dbus_send: %s", cmd);
@@ -127,7 +131,7 @@ static void dbus_send_power_supply(int capacity, int charger)
     sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
-    dbus_send(power_device, option);
+    dbus_send(power_device, DBUS_SEND_SYSNOTI, option);
 }
 
 #define DEVICE_CHANGED      "device_changed"
@@ -140,7 +144,7 @@ static void dbus_send_usb(int on)
 
     sprintf(option, "int32:2 string:\"usb\" string:\"%d\"", on);
 
-    dbus_send(usb_device, option);
+    dbus_send(usb_device, DBUS_SEND_EXTCON, option);
 }
 
 static void dbus_send_earjack(int on)
@@ -151,7 +155,7 @@ static void dbus_send_earjack(int on)
 
     sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
 
-    dbus_send(earjack_device, option);
+    dbus_send(earjack_device, DBUS_SEND_EXTCON, option);
 }
 
 int parse_motion_data(int len, char *buffer)

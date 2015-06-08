@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.9.7
+Version: 0.9.8
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
