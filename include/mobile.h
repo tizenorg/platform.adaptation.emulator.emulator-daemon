@@ -30,8 +30,6 @@
 #ifndef __MOBILE_H__
 #define __MOBILE_H__
 
-#define TID_SENSOR          5
-
 #define IJTYPE_SENSOR       "sensor"
 
 #define VCONF_DBTAP      "memory/private/sensor/800004"

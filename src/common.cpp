@@ -1473,6 +1473,8 @@ static void* umount_hds(void* args)
 void msgproc_hds(ijcommand* ijcmd)
 {
     char* data;
+    char* tag;
+    char* path;
     LOGDEBUG("msgproc_hds");
 
     if (!strncmp(ijcmd->data, HDS_DEFAULT_PATH, 9)) {
@@ -1489,14 +1491,25 @@ void msgproc_hds(ijcommand* ijcmd)
 
     LOGINFO("action: %d, data: %s", ijcmd->msg.action, data);
     if (ijcmd->msg.action == 1) {
-        if (pthread_create(&tid[TID_HDS], NULL, mount_hds, (void*)data) != 0) {
+        if (pthread_create(&tid[TID_HDS_ATTACH], NULL, mount_hds, (void*)data) != 0) {
+            if (!get_tag_path(data, &tag, &path)) {
+                LOGERR("mount pthread_create fail - wrong tag or path.");
+                free(data);
+                return;
+            }
             LOGERR("mount hds pthread create fail!");
+            send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 2, tag);
             free(data);
         }
     } else if (ijcmd->msg.action == 2) {
-        pthread_cancel(tid[TID_HDS]);
-        if (pthread_create(&tid[TID_HDS], NULL, umount_hds, (void*)data) != 0) {
+        if (pthread_create(&tid[TID_HDS_DETACH], NULL, umount_hds, (void*)data) != 0) {
+            if (!get_tag_path(data, &tag, &path)) {
+                LOGERR("umount pthread_create fail - wrong tag or path.");
+                free(data);
+                return;
+            }
             LOGERR("umount hds pthread create fail!");
+            send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 4, tag);
             free(data);
         }
     } else {

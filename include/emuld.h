@@ -62,12 +62,13 @@ enum
 #define HEADER_SIZE         4
 #define STATUS              15
 
-// Thread TID profile uses >= 5
 #define TID_BOOT            1
 #define TID_SDCARD          2
 #define TID_LOCATION        3
-#define TID_HDS             4
-#define TID_VCONF           6
+#define TID_HDS_ATTACH      4
+#define TID_HDS_DETACH      5
+#define TID_SENSOR          6
+#define TID_VCONF           7
 
 extern pthread_t tid[MAX_CLIENT + 1];
 extern int g_fd[fdtype_max];
