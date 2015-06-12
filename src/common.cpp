@@ -171,13 +171,28 @@ void msgproc_system(ijcommand* ijcmd)
     powerdown_by_force();
 }
 
+static int lock_state = SUSPEND_UNLOCK;
+
 static void set_lock_state(int state) {
     int i = 0;
     int ret = 0;
-    // Now we blocking to enter "SLEEP".
+
+    // FIXME: int lock_state = get_lock_state();
+    LOGINFO("current lock state : %d (1: lock, other: unlock)", lock_state);
+
     while(i < PMAPI_RETRY_COUNT ) {
-        ret = display_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
-        LOGINFO("display_lock_state() return: %d", ret);
+        if (state == SUSPEND_LOCK) {
+            // Now we blocking to enter "SLEEP".
+            ret = display_lock_state(LCD_OFF, STAY_CUR_STATE, 0);
+        } else if (lock_state == SUSPEND_LOCK) {
+            ret = display_unlock_state(LCD_OFF, PM_SLEEP_MARGIN);
+        } else {
+            LOGINFO("meaningless unlock -> unlock state request. RETURN!");
+            return;
+        }
+
+        LOGINFO("display_(lock/unlock)_state return: %d", ret);
+
         if(ret == 0)
         {
             break;
@@ -186,19 +201,21 @@ static void set_lock_state(int state) {
         sleep(10);
     }
     if (i == PMAPI_RETRY_COUNT) {
-        LOGERR("Emulator Daemon: Failed to call display_lock_state().\n");
+        LOGERR("Emulator Daemon: Failed to set lock state.\n");
+        return;
     }
+    lock_state = state;
 }
 
 void msgproc_suspend(ijcommand* ijcmd)
 {
+    LOGINFO("[Suspend] Set lock state as %d (1: lock, other: unlock)", ijcmd->msg.action);
+
     if (ijcmd->msg.action == SUSPEND_LOCK) {
         set_lock_state(SUSPEND_LOCK);
     } else {
         set_lock_state(SUSPEND_UNLOCK);
     }
-
-    LOGINFO("[Suspend] Set lock state as %d (1: lock, other: unlock)", ijcmd->msg.action);
 }
 
 void send_to_ecs(const char* cat, int group, int action, char* data)
