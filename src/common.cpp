@@ -1573,3 +1573,22 @@ void set_vconf_cb(void)
         LOGERR("vconf_notify_key_changed() failed");
     }
 }
+
+#define DBUS_SEND_PRE_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/"
+#define DBUS_SEND_MID_CMD   " org.tizen.system.deviced."
+
+void dbus_send(const char* device, const char* target, const char* option)
+{
+    const char* dbus_send_pre_cmd = DBUS_SEND_PRE_CMD;
+    const char* dbus_send_mid_cmd = DBUS_SEND_MID_CMD;
+    char cmd[DBUS_MSG_BUF_SIZE];
+
+    if (device == NULL || option == NULL || target == NULL)
+        return;
+
+    snprintf(cmd, sizeof(cmd), "%s%s%s%s.%s string:\"%s\" %s", dbus_send_pre_cmd, target, dbus_send_mid_cmd, target, device, device, option);
+
+    systemcall(cmd);
+    LOGINFO("dbus_send: %s", cmd);
+}
+

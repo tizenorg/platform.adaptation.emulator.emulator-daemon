@@ -73,41 +73,6 @@ enum motion_move{
     SENSOR_MOTION_MOVE_MOVETOCALL = 1
 };
 
-static void system_cmd(const char* msg)
-{
-    int ret = system(msg);
-    if (ret == -1) {
-        LOGERR("system command is failed: %s", msg);
-    }
-}
-
-#define DBUS_SEND_PRE_CMD   "dbus-send --system --type=method_call --print-reply --reply-timeout=120000 --dest=org.tizen.system.deviced /Org/Tizen/System/DeviceD/"
-#define DBUS_SEND_MID_CMD   " org.tizen.system.deviced."
-#define DBUS_SEND_SYSNOTI   "SysNoti"
-#define DBUS_SEND_EXTCON    "ExtCon"
-static void dbus_send(const char* device, const char* target, const char* option)
-{
-    const char* dbus_send_pre_cmd = DBUS_SEND_PRE_CMD;
-    const char* dbus_send_mid_cmd = DBUS_SEND_MID_CMD;
-    char* cmd;
-
-    if (device == NULL || option == NULL)
-        return;
-
-    cmd = (char*)malloc(512);
-    if (cmd == NULL)
-        return;
-
-    memset(cmd, 0, 512);
-
-    sprintf(cmd, "%s%s%s%s.%s string:\"%s\" %s", dbus_send_pre_cmd, target, dbus_send_mid_cmd, target, device, device, option);
-
-    system_cmd(cmd);
-    LOGINFO("dbus_send: %s", cmd);
-
-    free(cmd);
-}
-
 #define POWER_SUPPLY    "power_supply"
 #define FULL            "Full"
 #define CHARGING        "Charging"
@@ -116,9 +81,8 @@ static void dbus_send_power_supply(int capacity, int charger)
 {
     const char* power_device = POWER_SUPPLY;
     char state [16];
-    char option [128];
-    memset(state, 0, 16);
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
+    memset(state, 0, sizeof(state));
 
     if (capacity == 100 && charger == 1) {
         memcpy(state, FULL, 4);
@@ -128,21 +92,18 @@ static void dbus_send_power_supply(int capacity, int charger)
         memcpy(state, DISCHARGING, 11);
     }
 
-    sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
+    snprintf(option, sizeof(option), "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
     dbus_send(power_device, DBUS_SEND_SYSNOTI, option);
 }
 
-#define DEVICE_CHANGED      "device_changed"
-
 static void dbus_send_usb(int on)
 {
     const char* usb_device = DEVICE_CHANGED;
-    char option [128];
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"usb\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"usb\" string:\"%d\"", on);
 
     dbus_send(usb_device, DBUS_SEND_EXTCON, option);
 }
@@ -150,10 +111,9 @@ static void dbus_send_usb(int on)
 static void dbus_send_earjack(int on)
 {
     const char* earjack_device = DEVICE_CHANGED;
-    char option [128];
-    memset(option, 0, 128);
+    char option [DBUS_MSG_BUF_SIZE];
 
-    sprintf(option, "int32:2 string:\"earjack\" string:\"%d\"", on);
+    snprintf(option, sizeof(option), "int32:2 string:\"earjack\" string:\"%d\"", on);
 
     dbus_send(earjack_device, DBUS_SEND_EXTCON, option);
 }

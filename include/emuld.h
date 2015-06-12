@@ -200,6 +200,12 @@ void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 
+#define DBUS_MSG_BUF_SIZE   512
+#define DBUS_SEND_SYSNOTI   "SysNoti"
+#define DBUS_SEND_EXTCON    "ExtCon"
+#define DEVICE_CHANGED      "device_changed"
+void dbus_send(const char* device, const char* target, const char* option);
+
 #define HDS_DEFAULT_ID      "fsdef0"
 #define HDS_DEFAULT_TAG     "fileshare"
 #define HDS_DEFAULT_PATH    "/mnt/host"
