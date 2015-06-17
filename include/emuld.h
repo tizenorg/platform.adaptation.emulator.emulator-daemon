@@ -62,7 +62,7 @@ enum
 #define HEADER_SIZE         4
 #define STATUS              15
 
-#define TID_BOOT            1
+#define TID_NETWORK         1
 #define TID_SDCARD          2
 #define TID_LOCATION        3
 #define TID_HDS_ATTACH      4
@@ -85,9 +85,23 @@ void writelog(const char* fmt, ...);
 #  define LOGERR LOGE
 #  define LOGDEBUG LOGD
 #else
-#  define LOGINFO(fmt, ...) { writelog(fmt, ##__VA_ARGS__); }
-#  define LOGERR LOGINFO
-#  define LOGDEBUG LOGINFO
+#  define LOG_TAG           "EMULD"
+#  include <dlog/dlog.h>
+#  define LOGINFO(fmt, ...)     \
+        do {    \
+            writelog(fmt, ##__VA_ARGS__);   \
+            LOGI(fmt, ##__VA_ARGS__);   \
+        } while (0)
+#  define LOGERR(fmt, ...)  \
+        do {    \
+            writelog(fmt, ##__VA_ARGS__);   \
+            LOGE(fmt, ##__VA_ARGS__);   \
+        } while (0)
+#  define LOGDEBUG(fmt, ...)    \
+        do {    \
+            writelog(fmt, ##__VA_ARGS__);   \
+            LOGD(fmt, ##__VA_ARGS__);   \
+        } while (0)
 #endif
 
 typedef unsigned short  CliSN;
@@ -188,7 +202,7 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
 void get_guest_addr(void);
-int register_connection(void);
+void register_connection(void);
 void destroy_connection(void);
 
 void set_vconf_cb(void);
@@ -196,7 +210,6 @@ void send_to_ecs(const char* cat, int group, int action, char* data);
 void send_emuld_connection(void);
 void send_default_suspend_req(void);
 void send_default_mount_req(void);
-void* dbus_booting_done_check(void* data);
 void systemcall(const char* param);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 

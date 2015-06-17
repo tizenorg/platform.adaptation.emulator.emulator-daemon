@@ -62,7 +62,6 @@ SET(PKG_MODULE
     ecore
     edbus
     capi-network-connection
-    glib-2.0
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})

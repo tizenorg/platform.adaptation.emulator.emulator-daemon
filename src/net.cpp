@@ -39,7 +39,6 @@
 #include <fcntl.h>
 #include "emuld.h"
 #include <net_connection.h>
-
 #define PROC_CMDLINE_PATH "/proc/cmdline"
 #define IP_SUFFIX " ip="
 #define IJTYPE_GUESTIP "guest_ip"
@@ -239,42 +238,25 @@ static void send_guest_ip_req(void)
         free(packet);
 }
 
-void *g_main_thread_cb(void *arg)
+void register_connection(void)
 {
-    mainloop = g_main_loop_new(NULL, FALSE);
-
-    int err = connection_create(&connection);
-    if (CONNECTION_ERROR_NONE == err) {
+    int ret = connection_create(&connection);
+    if (CONNECTION_ERROR_NONE == ret) {
         LOGINFO("connection_create() success!: [%p]", connection);
         connection_set_ip_address_changed_cb(connection, ip_changed_cb, NULL);
     } else {
-        LOGERR("Client registration failed %d", err);
-        return NULL;
+        LOGERR("Client registration failed %d", ret);
+        return;
     }
     get_guest_addr();
-    g_main_loop_run(mainloop);
-    return NULL;
 }
 
-int register_connection()
-{
-    LOGINFO("register_connection");
-
-    if(pthread_create(&g_main_thread, NULL, g_main_thread_cb, NULL) != 0) {
-        LOGERR("fail to create g_main_thread!");
-        return -1;
-    }
-    return 1;
-}
-
-void destroy_connection()
+void destroy_connection(void)
 {
     if (connection != NULL) {
         connection_destroy(connection);
     }
     connection_profile_destroy(profile);
-    g_main_loop_quit(mainloop);
-    pthread_detach(g_main_thread);
 }
 
 static char *s_strncpy(char *dest, const char *source, size_t n)
@@ -396,7 +378,5 @@ void get_guest_addr()
     } else {
         LOGINFO("use dynamic IP. do not need update network information.");
     }
-
-    send_emuld_connection();
 }
 

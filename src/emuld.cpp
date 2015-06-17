@@ -32,10 +32,14 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 
 #include "emuld.h"
 #include "synbuf.h"
+
+#include <E_DBus.h>
+#include <Ecore.h>
 
 #include <queue>
 
@@ -339,7 +343,52 @@ static bool server_process(void)
     return false;
 }
 
-int main( int argc , char *argv[])
+enum ioctl_cmd {
+    IOCTL_CMD_BOOT_DONE,
+};
+
+void send_to_kernel(void)
+{
+    if(ioctl(g_fd[fdtype_device], IOCTL_CMD_BOOT_DONE, NULL) == -1) {
+        LOGERR("Failed to send ioctl to kernel");
+        return;
+    }
+    LOGINFO("[DBUS] sent booting done to kernel");
+}
+
+#define DBUS_PATH_BOOT_DONE  "/Org/Tizen/System/DeviceD/Core"
+#define DBUS_IFACE_BOOT_DONE "org.tizen.system.deviced.core"
+#define BOOT_DONE_SIGNAL     "BootingDone"
+
+static void boot_done(void *data, DBusMessage *msg)
+{
+    if (dbus_message_is_signal(msg,
+                DBUS_IFACE_BOOT_DONE,
+                BOOT_DONE_SIGNAL) != 0) {
+        LOGINFO("[DBUS] sending booting done to ecs.");
+        send_to_ecs(IJTYPE_BOOT, 0, 0, NULL);
+        LOGINFO("[DBUS] sending booting done to kernel for log.");
+        send_to_kernel();
+    }
+}
+
+static void sig_handler(int signo)
+{
+    LOGINFO("received signal: %d. EXIT!", signo);
+    _exit(0);
+}
+
+static void add_sig_handler(int signo)
+{
+    sighandler_t sig;
+
+    sig = signal(signo, sig_handler);
+    if (sig == SIG_ERR) {
+        LOGERR("adding %d signal failed : %d", signo, errno);
+    }
+}
+
+void* handling_network(void* data)
 {
     int ret = -1;
 
@@ -356,15 +405,7 @@ int main( int argc , char *argv[])
         exit(0);
     }
 
-    ret = register_connection();
-
     send_default_suspend_req();
-
-    if (pthread_create(&tid[TID_BOOT], NULL, dbus_booting_done_check, NULL) != 0)
-    {
-        LOGERR("boot noti pthread create fail!");
-        return -1;
-    }
 
     LOGINFO("[START] epoll & device init success");
 
@@ -382,20 +423,86 @@ int main( int argc , char *argv[])
     add_vconf_map_profile();
     set_vconf_cb();
 
+    send_emuld_connection();
+
     while(!exit_flag)
     {
         exit_flag = server_process();
     }
 
     stop_listen();
-    if (ret == 1)
-    {
-        LOGINFO("destroy connection");
-        destroy_connection();
+
+    exit(0);
+}
+
+int main( int argc , char *argv[])
+{
+    int ret;
+    void* retval = NULL;
+
+    E_DBus_Connection *dbus_conn;
+    E_DBus_Signal_Handler *boot_handler = NULL;
+
+    ecore_init();
+
+    dbus_threads_init_default();
+
+    ret = e_dbus_init();
+    if (ret == 0) {
+        LOGERR("[DBUS] init value : %d", ret);
+        exit(-1);
     }
 
+    dbus_conn = e_dbus_bus_get(DBUS_BUS_SYSTEM);
+    if (!dbus_conn) {
+        LOGERR("[DBUS] Failed to get dbus bus.");
+        e_dbus_shutdown();
+        ecore_shutdown();
+        exit(-1);
+    }
+
+    boot_handler = e_dbus_signal_handler_add(
+            dbus_conn,
+            NULL,
+            DBUS_PATH_BOOT_DONE,
+            DBUS_IFACE_BOOT_DONE,
+            BOOT_DONE_SIGNAL,
+            boot_done,
+            NULL);
+    if (!boot_handler) {
+        LOGERR("[DBUS] Failed to register handler");
+        e_dbus_signal_handler_del(dbus_conn, boot_handler);
+        e_dbus_shutdown();
+        ecore_shutdown();
+        exit(-1);
+    }
+    LOGINFO("[DBUS] signal handler is added.");
+
+    add_sig_handler(SIGINT);
+    add_sig_handler(SIGTERM);
+
+    register_connection();
+
+    if (pthread_create(&tid[TID_NETWORK], NULL, handling_network, NULL) != 0)
+    {
+        LOGERR("boot noti pthread create fail!");
+        return -1;
+    }
+
+    ecore_main_loop_begin();
+
+    e_dbus_signal_handler_del(dbus_conn, boot_handler);
+    e_dbus_shutdown();
+    ecore_shutdown();
+
+    destroy_connection();
 
     LOGINFO("emuld exit");
+
+    ret = pthread_join(tid[TID_NETWORK], &retval);
+    if (ret < 0) {
+        LOGERR("validate package pthread join is failed.");
+    }
 
     return 0;
 }

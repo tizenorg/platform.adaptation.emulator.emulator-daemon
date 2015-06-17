@@ -8,7 +8,6 @@ After=connman.service
 [Service]
 Type=simple
 ExecStart=/usr/bin/emuld
-KillSignal=SIGUSR1
 
 [Install]
 WantedBy=emulator.target

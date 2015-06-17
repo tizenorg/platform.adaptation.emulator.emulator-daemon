@@ -29,15 +29,11 @@
 
 #include <sys/time.h>
 #include <sys/reboot.h>
-#include <sys/ioctl.h>
 #include <sys/mount.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
 #include <utility>
-
-#include <E_DBus.h>
-#include <Ecore.h>
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -421,97 +417,6 @@ void msgproc_package(ijcommand* ijcmd)
     if (ret < 0) {
         LOGERR("validate package pthread join is failed.");
     }
-}
-
-enum ioctl_cmd {
-    IOCTL_CMD_BOOT_DONE,
-};
-
-void send_to_kernel(void)
-{
-    if(ioctl(g_fd[fdtype_device], IOCTL_CMD_BOOT_DONE, NULL) == -1) {
-        LOGERR("Failed to send ioctl to kernel");
-        return;
-    }
-    LOGINFO("[DBUS] sent booting done to kernel");
-}
-
-#define DBUS_PATH_BOOT_DONE  "/Org/Tizen/System/DeviceD/Core"
-#define DBUS_IFACE_BOOT_DONE "org.tizen.system.deviced.core"
-#define BOOT_DONE_SIGNAL     "BootingDone"
-
-static void boot_done(void *data, DBusMessage *msg)
-{
-    if (dbus_message_is_signal(msg,
-                DBUS_IFACE_BOOT_DONE,
-                BOOT_DONE_SIGNAL) != 0) {
-        LOGINFO("[DBUS] sending booting done to ecs.");
-        send_to_ecs(IJTYPE_BOOT, 0, 0, NULL);
-        LOGINFO("[DBUS] sending booting done to kernel for log.");
-        send_to_kernel();
-    }
-}
-
-static void sig_handler(int signo)
-{
-    LOGINFO("received signal: %d. EXIT!", signo);
-    _exit(0);
-}
-
-static void add_sig_handler(int signo)
-{
-    sighandler_t sig;
-
-    sig = signal(signo, sig_handler);
-    if (sig == SIG_ERR) {
-        LOGERR("adding %d signal failed : %d", signo, errno);
-    }
-}
-
-void* dbus_booting_done_check(void* data)
-{
-    E_DBus_Connection *connection;
-    E_DBus_Signal_Handler *boot_handler = NULL;
-
-    ecore_init();
-    e_dbus_init();
-
-    connection = e_dbus_bus_get(DBUS_BUS_SYSTEM);
-    if (!connection) {
-        LOGERR("[DBUS] Failed to get dbus bus.");
-        e_dbus_shutdown();
-        ecore_shutdown();
-        return NULL;
-    }
-
-    boot_handler = e_dbus_signal_handler_add(
-            connection,
-            NULL,
-            DBUS_PATH_BOOT_DONE,
-            DBUS_IFACE_BOOT_DONE,
-            BOOT_DONE_SIGNAL,
-            boot_done,
-            NULL);
-    if (!boot_handler) {
-        LOGERR("[DBUS] Failed to register handler");
-        e_dbus_signal_handler_del(connection, boot_handler);
-        e_dbus_shutdown();
-        ecore_shutdown();
-        return NULL;
-    }
-    LOGINFO("[DBUS] signal handler is added.");
-
-    add_sig_handler(SIGINT);
-    add_sig_handler(SIGTERM);
-    add_sig_handler(SIGUSR1);
-
-    ecore_main_loop_begin();
-
-    e_dbus_signal_handler_del(connection, boot_handler);
-    e_dbus_shutdown();
-    ecore_shutdown();
-
-    return NULL;
 }
 
 char SDpath[256];

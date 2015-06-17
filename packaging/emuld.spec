@@ -1,5 +1,5 @@
 Name: emuld
-Version: 0.9.10
+Version: 0.9.11
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -12,12 +12,7 @@ BuildRequires: pkgconfig(deviced)
 BuildRequires: pkgconfig(dlog)
 BuildRequires: pkgconfig(edbus)
 BuildRequires: pkgconfig(ecore)
-BuildRequires: pkgconfig(dbus-glib-1)
-BuildRequires: pkgconfig(capi-appfw-app-manager)
-BuildRequires: pkgconfig(capi-base-common)
 BuildRequires: pkgconfig(capi-network-connection)
-BuildRequires: pkgconfig(network)
-BuildRequires: pkgconfig(glib-2.0)
 
 %description
 A emulator daemon is used for communication between guest and host
