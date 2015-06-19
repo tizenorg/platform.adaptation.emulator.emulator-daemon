@@ -146,13 +146,13 @@ static bool get_profile()
 
         if (connection_profile_get_type(profile_h, &profile_type) != CONNECTION_ERROR_NONE) {
             LOGERR("Fail to get profile type");
-            g_free(profile_name);
+            free(profile_name);
             return false;
         }
 
         if (connection_profile_get_state(profile_h, &profile_state) != CONNECTION_ERROR_NONE) {
             LOGERR("Fail to get profile state");
-            g_free(profile_name);
+            free(profile_name);
             return false;
         }
 
