@@ -530,11 +530,6 @@ bool extra_evdi_command(ijcommand* ijcmd) {
         msgproc_location(ijcmd);
         return true;
     }
-    else if (strcmp(ijcmd->cmd, IJTYPE_SDCARD) == 0)
-    {
-        msgproc_sdcard(ijcmd);
-        return true;
-    }
     return false;
 }
 

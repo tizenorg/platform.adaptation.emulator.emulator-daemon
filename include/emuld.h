@@ -63,7 +63,6 @@ enum
 #define STATUS              15
 
 #define TID_NETWORK         1
-#define TID_SDCARD          2
 #define TID_LOCATION        3
 #define TID_HDS_ATTACH      4
 #define TID_HDS_DETACH      5
@@ -237,7 +236,6 @@ int try_mount(char* tag, char* path);
 #define IJTYPE_BOOT         "boot"
 #define IJTYPE_VCONF        "vconf"
 #define IJTYPE_LOCATION     "location"
-#define IJTYPE_SDCARD       "sdcard"
 
 void *g_main_thread_cb(void *arg);
 void msgproc_suspend(ijcommand* ijcmd);
@@ -245,7 +243,6 @@ void msgproc_system(ijcommand* ijcmd);
 void msgproc_package(ijcommand* ijcmd);
 void msgproc_hds(ijcommand* ijcmd);
 void msgproc_location(ijcommand* ijcmd);
-void msgproc_sdcard(ijcommand* ijcmd);
 void* exec_cmd_thread(void *args);
 void msgproc_cmd(ijcommand* ijcmd);
 void msgproc_vconf(ijcommand* ijcmd);
