@@ -37,68 +37,62 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <glib.h>
 #include "emuld.h"
 #include <net_connection.h>
-#define PROC_CMDLINE_PATH "/proc/cmdline"
-#define IP_SUFFIX " ip="
-#define IJTYPE_GUESTIP "guest_ip"
-pthread_t g_main_thread;
-char g_guest_ip[64];
-char g_guest_subnet[64];
-char g_guest_gw[64];
-char g_guest_dns[64];
+#define PROC_CMDLINE_PATH        "/proc/cmdline"
+#define IP_SUFFIX                " ip="
+#define IJTYPE_GUESTIP           "guest_ip"
+#define NETLABEL_PATH            "/smack/netlabel"
+#define NETLABEL_BACKUP_PATH     "/tmp/netlabel.bak"
+#define DEFAULT_GUEST_IP         "10.0.2.15"
+#define DEFAULT_GUEST_GW         "10.0.2.2"
+#define MINIMUM_IP_LENGTH        8
+#define CONNMAN_NOT_READY       -29424639
+
+void set_guest_addr();
 connection_h connection = NULL;
 connection_profile_h profile;
-GMainLoop *mainloop;
-bool use_dynamic_ip = false;
-static void send_guest_ip_req(void);
 
 static int update_ip_info(connection_profile_h profile,
-        connection_address_family_e address_family)
+        connection_address_family_e address_family, gchar **ip)
 {
     int rv = 0;
 
     rv = connection_profile_set_ip_address(profile,
             address_family,
-            g_guest_ip);
+            ip[0]);
     if (rv != CONNECTION_ERROR_NONE)
         return -1;
-    LOGINFO("update IP address to %s", g_guest_ip);
-
-    rv = connection_profile_set_subnet_mask(profile,
-            address_family,
-            g_guest_subnet);
-    if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update subnet: %s", g_guest_subnet);
-        return -1;
-    }
+    LOGINFO("update IP address to %s", ip[0]);
 
     rv = connection_profile_set_gateway_address(profile,
             address_family,
-            g_guest_gw);
+            ip[2]);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update gateway: %s", g_guest_gw);
+        LOGERR("Fail to update gateway: %s", ip[2]);
+        return -1;
+    }
+
+    rv = connection_profile_set_subnet_mask(profile,
+            address_family,
+            ip[3]);
+    if (rv != CONNECTION_ERROR_NONE) {
+        LOGERR("Fail to update subnet: %s", ip[3]);
         return -1;
     }
 
     rv = connection_profile_set_dns_address(profile,
             1,
             address_family,
-            g_guest_dns);
+            ip[7]);
     if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Fail to update dns: %s", g_guest_dns);
+        LOGERR("Fail to update dns: %s", ip[7]);
         return -1;
     }
 
     return 1;
-}
-
-static void ip_changed_cb(const char* ipv4_address, const char* ipv6_address, void* user_data)
-{
-    LOGINFO("IP changed callback, IPv4 address : %s, IPv6 address : %s",
-            ipv4_address, (ipv6_address ? ipv6_address : "NULL"));
-    strcpy(g_guest_ip, ipv4_address);
-    send_guest_ip_req();
 }
 
 static const char *print_state(connection_profile_state_e state)
@@ -166,54 +160,49 @@ static bool get_profile()
     return false;
 }
 
-
-static int update_network_info(connection_profile_h profile)
+static void update_ip_netlabel(const char*guest_ip)
 {
-    int rv = 0;
-    rv = connection_profile_set_ip_config_type(profile,
-            CONNECTION_ADDRESS_FAMILY_IPV4,
-            CONNECTION_IP_CONFIG_TYPE_STATIC);
-    if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Failed to connection_profile_set_ip_config_type() : %d", rv);
-        return -1;
+    if (strlen(guest_ip) >= MINIMUM_IP_LENGTH && strcmp(guest_ip, DEFAULT_GUEST_IP)) {
+        gchar *temp = g_strdup_printf("echo \"%s/32 system::debugging_network\" >> %s", guest_ip, NETLABEL_PATH);
+        LOGINFO("updating netlabel for default ip: %s", temp);
+        systemcall(temp);
+        g_free(temp);
     }
-
-    if (update_ip_info(profile, CONNECTION_ADDRESS_FAMILY_IPV4) == -1)
-        return -1;
-
-    rv = connection_update_profile(connection, profile);
-    if (rv != CONNECTION_ERROR_NONE) {
-        LOGERR("Failed to update profile: %d", rv);
-        return -1;
-    }
-    send_guest_ip_req();
-    return 1;
 }
 
-static int update_connection()
+static void update_gw_netlabel(const char *guest_gw)
 {
-    int rv = 0;
-    if (get_profile() == false) {
-        return -1;
+    if (strlen(guest_gw) >= MINIMUM_IP_LENGTH && strcmp(guest_gw, DEFAULT_GUEST_GW)) {
+        gchar *temp = g_strdup_printf("echo \"%s/32 system::debugging_network\" >> %s", guest_gw, NETLABEL_PATH);
+        LOGINFO("updating netlabel for default gateway: %s", temp);
+        systemcall(temp);
+        g_free(temp);
     }
-
-    if (update_network_info(profile) == -1) {
-        return -1;
-    }
-    rv = connection_update_profile(connection, profile);
-    if (rv != CONNECTION_ERROR_NONE)
-        return -1;
-
-    return 1;
 }
-static void send_guest_ip_req(void)
+
+static void update_netlabel(const char *guest_ip, const char *guest_gw)
+{
+    if (guest_ip) {
+        update_ip_netlabel(guest_ip);
+    } else {
+        LOGERR("cannot update ip address to netlabel. ip is NULL");
+    }
+
+    if (guest_gw) {
+        update_gw_netlabel(guest_gw);
+    } else {
+        LOGERR("cannot update gateway address to netlabel. gateway is NULL");
+    }
+}
+
+static void send_guest_ip_req(const char *guest_ip)
 {
     LXT_MESSAGE *packet = (LXT_MESSAGE *)calloc(1 ,sizeof(LXT_MESSAGE));
     if (packet == NULL) {
         return;
     }
 
-    packet->length = strlen(g_guest_ip);
+    packet->length = strlen(guest_ip);
     packet->group = 0;
     packet->action = STATUS;
 
@@ -226,9 +215,9 @@ static void send_guest_ip_req(void)
     }
 
     memcpy(tmp, packet, HEADER_SIZE);
-    memcpy(tmp + HEADER_SIZE, g_guest_ip, packet->length);
+    memcpy(tmp + HEADER_SIZE, guest_ip, packet->length);
 
-    LOGINFO("send guest IP to host");
+    LOGINFO("send guest IP to host: %s", guest_ip);
     ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_GUESTIP, (const char*) tmp, tmplen);
 
 
@@ -238,23 +227,96 @@ static void send_guest_ip_req(void)
         free(packet);
 }
 
-void register_connection(void)
+static char *get_gateway_address()
 {
-    int ret = connection_create(&connection);
+    char *gateway = NULL;
+    int rv = 0;
+
+    if (get_profile() == false) {
+        return NULL;
+    }
+
+    connection_profile_get_gateway_address(profile, CONNECTION_ADDRESS_FAMILY_IPV4, &gateway);
+    if (rv != CONNECTION_ERROR_NONE) {
+        LOGERR("Fail to get gateway");
+        return NULL;
+    }
+    LOGINFO("gateway: %s", gateway);
+    return gateway;
+}
+
+static void ip_changed_cb(const char* ipv4_address, const char* ipv6_address, void* user_data)
+{
+    LOGINFO("IP changed callback, IPv4 address : %s, IPv6 address : %s",
+            ipv4_address, (ipv6_address ? ipv6_address : "NULL"));
+    char *gateway = get_gateway_address();
+    update_netlabel(ipv4_address, gateway);
+    send_guest_ip_req(ipv4_address);
+    if (gateway) {
+        free(gateway);
+    }
+}
+
+static int update_network_info(connection_profile_h profile, gchar **ip)
+{
+    int rv = 0;
+    rv = connection_profile_set_ip_config_type(profile,
+            CONNECTION_ADDRESS_FAMILY_IPV4,
+            CONNECTION_IP_CONFIG_TYPE_STATIC);
+    if (rv != CONNECTION_ERROR_NONE) {
+        LOGERR("Failed to connection_profile_set_ip_config_type() : %d", rv);
+        return -1;
+    }
+
+    if (update_ip_info(profile, CONNECTION_ADDRESS_FAMILY_IPV4, ip) == -1)
+        return -1;
+
+    rv = connection_update_profile(connection, profile);
+    if (rv != CONNECTION_ERROR_NONE) {
+        LOGERR("Failed to update profile: %d", rv);
+        return -1;
+    }
+    update_netlabel(ip[0], ip[2]);
+    send_guest_ip_req(ip[0]);
+    return 1;
+}
+
+static int update_connection(gchar **ip)
+{
+    if (get_profile() == false) {
+        return -1;
+    }
+
+    if (update_network_info(profile, ip) == -1) {
+        return -1;
+    }
+
+    return 1;
+}
+
+void *register_connection(void* data)
+{
+    int ret;
+    while ((ret = connection_create(&connection)) == CONNMAN_NOT_READY) {
+        usleep(100);
+    }
     if (CONNECTION_ERROR_NONE == ret) {
         LOGINFO("connection_create() success!: [%p]", connection);
         connection_set_ip_address_changed_cb(connection, ip_changed_cb, NULL);
+        set_guest_addr();
     } else {
         LOGERR("Client registration failed %d", ret);
-        return;
+        return NULL;
     }
-    get_guest_addr();
+    LOGINFO("network connection pthread is quitting.");
+    return NULL;
 }
 
 void destroy_connection(void)
 {
     if (connection != NULL) {
         connection_destroy(connection);
+        connection = NULL;
     }
     connection_profile_destroy(profile);
 }
@@ -281,13 +343,15 @@ static int get_str_cmdline(char *src, const char *dest, char str[], int str_size
     if (s == NULL) {
         return -1;
     }
-    char *e = strstr(s, " ");
+    /* remove first blank */
+    char *new_s = s + 1;
+    char *e = strstr(new_s, " ");
     if (e == NULL) {
         return -1;
     }
+    int len = e - s - strlen(dest);
 
-    int len = e-s-strlen(dest);
-
+    LOGINFO("len: %d", len);
     if (len >= str_size) {
         LOGERR("buffer size(%d) should be bigger than %d", str_size, len+1);
         return -1;
@@ -300,7 +364,6 @@ static int get_str_cmdline(char *src, const char *dest, char str[], int str_size
 static int get_network_info(char str[], int str_size)
 {
     size_t len = 0;
-    ssize_t read;
     char *line = NULL;
     FILE *fp = fopen(PROC_CMDLINE_PATH, "r");
 
@@ -308,13 +371,13 @@ static int get_network_info(char str[], int str_size)
         LOGERR("fail to read /proc/cmdline");
         return -1;
     }
-    while ((read = getline(&line, &len, fp)) != -1) {
+    if (getline(&line, &len, fp) != -1) {
         LOGINFO("line: %s", line);
         LOGINFO("len: %d", len);
     }
+
     if (get_str_cmdline(line, IP_SUFFIX, str, str_size) < 1) {
         LOGINFO("could not get the (%s) value from cmdline. static ip does not set.", IP_SUFFIX);
-        use_dynamic_ip = true;
         fclose(fp);
         return -1;
     }
@@ -323,32 +386,31 @@ static int get_network_info(char str[], int str_size)
     return 0;
 }
 
-void get_guest_addr()
+void set_guest_addr()
 {
     int fd;
     struct ifreq ifrq;
     struct sockaddr_in *sin;
     char guest_net[1024] = {0,};
     if (get_network_info(guest_net, sizeof guest_net) == 0) {
-        char *token;
-        int i = 0;
+        /* use static IP */
         char *str = strdup(guest_net);
-        while ((token = strsep(&str, ":"))) {
-            if (i == 0) {
-                memset(&g_guest_ip[0], 0, sizeof(g_guest_ip));
-                strncpy(g_guest_ip, token, strlen(token));
-                LOGINFO("set guest_ip: %s", g_guest_ip);
-            } else if(i == 2) {
-                strncpy(g_guest_gw, token, strlen(token));
-            } else if(i == 3) {
-                strncpy(g_guest_subnet, token, strlen(token));
-            } else if(i == 7) {
-                strncpy(g_guest_dns, token, strlen(token));
+        gchar **ip = g_strsplit(str, ":", -1);
+        if (g_strv_length(ip) > 7) {
+            if (update_connection(ip) == 1) {
+                LOGINFO("Succeed to update connection");
+            } else {
+                LOGERR("failed to update connection");
             }
-            LOGINFO("token[%d]: %s",i++, token);
+        } else {
+            LOGERR("static IP information is incomplete. need more information.");
         }
+        /* If use static IP address, need notification to connman to update it */
+        g_strfreev(ip);
         free(str);
     } else {
+        /* use DHCP */
+        char *gateway = NULL;
         LOGINFO("try to get guest ip from eth0");
         fd = socket(AF_INET, SOCK_DGRAM, 0);
         if (fd < 0)
@@ -357,26 +419,17 @@ void get_guest_addr()
             return;
         }
         strcpy(ifrq.ifr_name, "eth0");
-        while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0)
-        {
-            sleep(0.5);
+        while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0) {
+            /* while to get ip address */
+            usleep(100);
         }
         sin = (struct sockaddr_in *)&ifrq.ifr_addr;
-        LOGINFO("IPADDR : %s", inet_ntoa(sin->sin_addr));
-        strncpy(g_guest_ip,  inet_ntoa(sin->sin_addr), strlen(inet_ntoa(sin->sin_addr)));
-        LOGINFO("set guest_ip: %s", g_guest_ip);
-
-        close(fd);
-        send_guest_ip_req();
-    }
-    if (!use_dynamic_ip) {
-        if (update_connection() == 1) {
-            LOGINFO("Succeed to update connection");
-        } else {
-            LOGERR("failed to update connection");
-        }
-    } else {
         LOGINFO("use dynamic IP. do not need update network information.");
+        close(fd);
+        gateway = get_gateway_address();
+        if (gateway) {
+            update_netlabel(inet_ntoa(sin->sin_addr), gateway);
+        }
+        send_guest_ip_req(inet_ntoa(sin->sin_addr));
     }
 }
-

@@ -439,7 +439,7 @@ int main( int argc , char *argv[])
 {
     int ret;
     void* retval = NULL;
-
+    pthread_t conn_thread_t;
     E_DBus_Connection *dbus_conn;
     E_DBus_Signal_Handler *boot_handler = NULL;
 
@@ -481,7 +481,10 @@ int main( int argc , char *argv[])
     add_sig_handler(SIGINT);
     add_sig_handler(SIGTERM);
 
-    register_connection();
+    if (pthread_create(&conn_thread_t, NULL, register_connection, NULL) < 0) {
+        LOGERR("network connection pthread create fail!");
+        return -1;
+    }
 
     if (pthread_create(&tid[TID_NETWORK], NULL, handling_network, NULL) != 0)
     {
@@ -502,6 +505,11 @@ int main( int argc , char *argv[])
     ret = pthread_join(tid[TID_NETWORK], &retval);
     if (ret < 0) {
         LOGERR("validate package pthread join is failed.");
+    }
+
+    ret = pthread_join(conn_thread_t, &retval);
+    if (ret < 0) {
+        LOGERR("network connection pthread join is failed.");
     }
 
     return 0;

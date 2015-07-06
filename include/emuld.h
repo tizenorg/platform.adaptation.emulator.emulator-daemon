@@ -201,7 +201,7 @@ int recv_data(int event_fd, char** r_databuf, int size);
 void recv_from_evdi(evdi_fd fd);
 bool accept_proc(const int server_fd);
 void get_guest_addr(void);
-void register_connection(void);
+void *register_connection(void* data);
 void destroy_connection(void);
 
 void set_vconf_cb(void);
