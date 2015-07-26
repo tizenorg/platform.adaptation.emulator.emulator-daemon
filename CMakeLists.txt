@@ -59,6 +59,7 @@ SET(PKG_MODULE
     vconf
     deviced
     dlog
+    glib-2.0
     ecore
     edbus
     capi-network-connection

@@ -10,6 +10,7 @@ BuildRequires: cmake
 BuildRequires: pkgconfig(vconf)
 BuildRequires: pkgconfig(deviced)
 BuildRequires: pkgconfig(dlog)
+BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(edbus)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(capi-network-connection)
