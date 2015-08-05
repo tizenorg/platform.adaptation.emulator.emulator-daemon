@@ -718,7 +718,7 @@ void msgproc_vconf(ijcommand* ijcmd)
 static char* get_location_status(void* p)
 {
     int mode;
-    int ret = vconf_get_int("db/location/replay/ReplayMode", &mode);
+    int ret = vconf_get_int(VCONF_REPLAYMODE, &mode);
     if (ret != 0) {
         return 0;
     }
@@ -740,7 +740,7 @@ static char* get_location_status(void* p)
     else if (mode == 1)
     { // NMEA MODE(LOG MODE)
         char* temp = 0;
-        temp = (char*) vconf_get_str("db/location/replay/FileName");
+        temp = (char*) vconf_get_str(VCONF_FILENAME);
         if (temp == 0) {
             //free(temp);
             return 0;
@@ -759,19 +759,19 @@ static char* get_location_status(void* p)
         double logitude;
         double altitude;
         double accuracy;
-        ret = vconf_get_dbl("db/location/replay/ManualLatitude", &latitude);
+        ret = vconf_get_dbl(VCONF_MLATITUDE, &latitude);
         if (ret != 0) {
             return 0;
         }
-        ret = vconf_get_dbl("db/location/replay/ManualLongitude", &logitude);
+        ret = vconf_get_dbl(VCONF_MLONGITUDE, &logitude);
         if (ret != 0) {
             return 0;
         }
-        ret = vconf_get_dbl("db/location/replay/ManualAltitude", &altitude);
+        ret = vconf_get_dbl(VCONF_MALTITUDE, &altitude);
         if (ret != 0) {
             return 0;
         }
-         ret = vconf_get_dbl("db/location/replay/ManualHAccuracy", &accuracy);
+         ret = vconf_get_dbl(VCONF_MHACCURACY, &accuracy);
         if (ret != 0) {
             return 0;
         }
@@ -871,62 +871,52 @@ static void* getting_location(void* data)
 void setting_location(char* databuf)
 {
     char* s = strchr(databuf, ',');
-    memset(command, 0, 256);
+    int err = 0;
     if (s == NULL) { // SET MODE
         int mode = atoi(databuf);
-        switch (mode) {
-        case 0: // STOP MODE
-            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
-            break;
-        case 1: // NMEA MODE (LOG MODE)
-            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
-            break;
-        case 2: // MANUAL MODE
-            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 2 -f");
-            break;
-        default:
+
+        // 0: STOP MODE, 1: NMEA_MODE (LOG MODE), 2: MANUAL MODE
+        if (mode < 0 || mode > 2) {
             LOGERR("error(%s) : stop replay mode", databuf);
-            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 0 -f");
-            break;
+            mode = 0;
         }
-        LOGDEBUG("Location Command : %s", command);
-        systemcall(command);
+
+        err = vconf_set_int(VCONF_REPLAYMODE, mode);
+        LOGFAIL(err, "Set ReplayMode failed. mode = %d", mode);
     } else {
         *s = '\0';
         int mode = atoi(databuf);
         if(mode == 1) { // NMEA MODE (LOG MODE)
-            sprintf(command, "vconftool set -t string db/location/replay/FileName \"%s\"", s+1);
-            LOGDEBUG("%s", command);
-            systemcall(command);
-            memset(command, 0, 256);
-            sprintf(command, "vconftool set -t int db/location/replay/ReplayMode 1 -f");
-            LOGDEBUG("%s", command);
-            systemcall(command);
+            err = vconf_set_str(VCONF_FILENAME, s+1);
+            LOGFAIL(err, "Set FileName failed. name = %s", s+1);
+            err = vconf_set_int(VCONF_REPLAYMODE, mode);
+            LOGFAIL(err, "Set ReplayMode failed. mode = %d", mode);
         } else if(mode == 2) {
             char* ptr = strtok(s+1, ",");
+            double value = 0.0;
 
             // Latitude
-            sprintf(command, "vconftool set -t double db/location/replay/ManualLatitude %s -f", ptr);
-            LOGINFO("%s", command);
-            systemcall(command);
+            value = atof(ptr);
+            err = vconf_set_dbl(VCONF_MLATITUDE, value);
+            LOGFAIL(err, "Set ManualLatitude failed. value = %f", value);
 
             // Longitude
             ptr = strtok(NULL, ",");
-            sprintf(command, "vconftool set -t double db/location/replay/ManualLongitude %s -f", ptr);
-            LOGINFO("%s", command);
-            systemcall(command);
+            value = atof(ptr);
+            err = vconf_set_dbl(VCONF_MLONGITUDE, value);
+            LOGFAIL(err, "Set ManualLongitude failed. value = %f", value);
 
             // Altitude
             ptr = strtok(NULL, ",");
-            sprintf(command, "vconftool set -t double db/location/replay/ManualAltitude %s -f", ptr);
-            LOGINFO("%s", command);
-            systemcall(command);
+            value = atof(ptr);
+            err = vconf_set_dbl(VCONF_MALTITUDE, value);
+            LOGFAIL(err, "Set ManualAltitude failed. value = %f", value);
 
-            // accuracy
+            // Accuracy
             ptr = strtok(NULL, ",");
-            sprintf(command, "vconftool set -t double db/location/replay/ManualHAccuracy %s -f", ptr);
-            LOGINFO("%s", command);
-            systemcall(command);
+            value = atof(ptr);
+            err = vconf_set_dbl(VCONF_MHACCURACY, value);
+            LOGFAIL(err, "Set ManualHAccuracy failed. value = %f", value);
         }
     }
 }

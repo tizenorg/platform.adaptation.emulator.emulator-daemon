@@ -83,6 +83,11 @@ void writelog(const char* fmt, ...);
 #  define LOGINFO LOGI
 #  define LOGERR LOGE
 #  define LOGDEBUG LOGD
+#  define LOGFAIL(expr, fmt, ...)  \
+        do {    \
+            if (expr)  \
+                LOGE(fmt, ##__VA_ARGS__);  \
+        } while (0)
 #else
 #  define LOG_TAG           "EMULD"
 #  include <dlog/dlog.h>
@@ -100,6 +105,13 @@ void writelog(const char* fmt, ...);
         do {    \
             writelog(fmt, ##__VA_ARGS__);   \
             LOGD(fmt, ##__VA_ARGS__);   \
+        } while (0)
+#  define LOGFAIL(expr, fmt, ...)  \
+        do {    \
+            if (expr) {  \
+                writelog(fmt, ##__VA_ARGS__);  \
+                LOGE(fmt, ##__VA_ARGS__);  \
+            }  \
         } while (0)
 #endif
 
