@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2015 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
@@ -508,27 +509,6 @@ bool msgproc_extinput(ijcommand* ijcmd)
     return true;
 }
 
-bool extra_evdi_command(ijcommand* ijcmd) {
-
-    if (strncmp(ijcmd->cmd, IJTYPE_GESTURE, 7) == 0)
-    {
-        msgproc_gesture(ijcmd);
-        return true;
-    }
-    else if (strncmp(ijcmd->cmd, IJTYPE_VOICE, 5) == 0)
-    {
-        msgproc_voice(ijcmd);
-        return true;
-    }
-	else if (strncmp(ijcmd->cmd, IJTYPE_EI, 2) == 0)
-	{
-		msgproc_extinput(ijcmd);
-		return true;
-	}
-
-    return false;
-}
-
 void add_vconf_map_profile(void)
 {
     /* tv */
@@ -540,4 +520,20 @@ void add_vconf_map_profile(void)
     add_vconf_map(TV, VCONF_AV2);
     add_vconf_map(TV, VCONF_COMP1);
     add_vconf_map(TV, VCONF_COMP2);
+}
+
+void add_msg_proc_ext(void)
+{
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_GESTURE, &msgproc_gesture, MSGPROC_PRIO_MIDDLE))
+    {
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_GESTURE);
+    }
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_VOICE, &msgproc_voice, MSGPROC_PRIO_MIDDLE))
+    {
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_VOICE);
+    }
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_EI, &msgproc_extinput, MSGPROC_PRIO_MIDDLE))
+    {
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_EI);
+    }
 }

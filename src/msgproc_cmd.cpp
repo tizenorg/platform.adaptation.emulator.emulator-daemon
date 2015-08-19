@@ -4,7 +4,8 @@
  * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
@@ -27,24 +28,38 @@
  *
  */
 
-#ifndef __TV_H__
-#define __TV_H__
+#include "emuld.h"
 
-#define IJTYPE_GESTURE      "gesture"
-#define IJTYPE_VOICE        "voice"
-#define IJTYPE_EI           "ei"
+static pthread_mutex_t mutex_cmd = PTHREAD_MUTEX_INITIALIZER;
 
-#define VCONF_HDMI1 "memory/sysman/hdmi1"
-#define VCONF_HDMI2 "memory/sysman/hdmi2"
-#define VCONF_HDMI3 "memory/sysman/hdmi3"
-#define VCONF_HDMI4 "memory/sysman/hdmi4"
-#define VCONF_AV1   "memory/sysman/av1"
-#define VCONF_AV2   "memory/sysman/av1"
-#define VCONF_COMP1 "memory/sysman/comp1"
-#define VCONF_COMP2 "memory/sysman/comp1"
+void* exec_cmd_thread(void *args)
+{
+    char *command = (char*)args;
 
-bool msgproc_gesture(ijcommand* ijcmd);
-bool msgproc_voice(ijcommand* ijcmd);
-bool msgproc_extinput(ijcommand* ijcmd);
+    systemcall(command);
+    LOGDEBUG("executed cmd: %s", command);
+    free(command);
 
-#endif
+    pthread_exit(NULL);
+}
+
+bool msgproc_cmd(ijcommand* ijcmd)
+{
+    _auto_mutex _(&mutex_cmd);
+    pthread_t cmd_thread_id;
+    char *cmd = (char*) malloc(ijcmd->msg.length + 1);
+
+    if (!cmd) {
+        LOGERR("malloc failed.");
+        return true;
+    }
+
+    memset(cmd, 0x00, ijcmd->msg.length + 1);
+    strncpy(cmd, ijcmd->data, ijcmd->msg.length);
+    LOGDEBUG("cmd: %s, length: %d", cmd, ijcmd->msg.length);
+
+    if (pthread_create(&cmd_thread_id, NULL, exec_cmd_thread, (void*)cmd) != 0) {
+        LOGERR("cmd pthread create fail!");
+    }
+    return true;
+}

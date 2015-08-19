@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
@@ -239,7 +240,7 @@ static void setting_sensor(char *buffer)
     }
 }
 
-void msgproc_sensor(ijcommand* ijcmd)
+bool msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
@@ -249,23 +250,17 @@ void msgproc_sensor(ijcommand* ijcmd)
             setting_sensor(ijcmd->data);
         }
     }
-}
-
-bool extra_evdi_command(ijcommand* ijcmd) {
-
-    if (strncmp(ijcmd->cmd, IJTYPE_SENSOR, 6) == 0)
-    {
-        msgproc_sensor(ijcmd);
-        return true;
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_LOCATION) == 0)
-    {
-        msgproc_location(ijcmd);
-        return true;
-    }
-    return false;
+    return true;
 }
 
 void add_vconf_map_profile(void)
 {
+}
+
+void add_msg_proc_ext(void)
+{
+    if (!msgproc_add(DEFAULT_MSGPROC, IJTYPE_SENSOR, &msgproc_sensor, MSGPROC_PRIO_MIDDLE))
+    {
+        LOGWARN("Msgproc add failed. plugin = %s, cmd = %s", DEFAULT_MSGPROC, IJTYPE_SENSOR);
+    }
 }

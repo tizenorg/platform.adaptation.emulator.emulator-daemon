@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
@@ -31,35 +32,49 @@
 #ifndef __EMULD_H__
 #define __EMULD_H__
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <pthread.h>
 #include <sys/epoll.h>
-#include <glib.h>
-#include <vconf.h>
-#include <iostream>
+#include <errno.h>
 #include <cassert>
-
 #include <map>
 
-#include "evdi.h"
+#include "synbuf.h"
+#include "libemuld.h"
 
-#define FDTYPE_MAX          6
+// plugin
+#define EMULD_PLUGIN_DIR "/usr/lib/emuld"
+#define EMULD_PLUGIN_INIT_FN "emuld_plugin_init"
+#define MAX_PLUGINS 16
 
-enum
-{
-    fdtype_device     = 1,
-    fdtype_ij         = 4,
-    fdtype_max        = FDTYPE_MAX
-};
+// epoll & evdi
+#define MAX_EVENTS  10000
+#define DEVICE_NODE_PATH "/dev/evdi0"
 
-/* definition */
-#define MAX_CLIENT          10000
-#define MAX_EVENTS          10000
-#define MAX_GETCNT          10
-#define ID_SIZE             10
-#define HEADER_SIZE         4
+// DBUS & Boot done signal
+#define BOOT_DONE_SIGNAL "BootingDone"
+#define DBUS_PATH_BOOT_DONE  "/Org/Tizen/System/DeviceD/Core"
+#define DBUS_IFACE_BOOT_DONE "org.tizen.system.deviced.core"
+
+// Network
+#define MAX_CLIENT  10000
+#define TID_NETWORK 1
+void* register_connection(void *data);
+void destroy_connection(void);
+extern pthread_t tid[MAX_CLIENT+1];
+
+// Common
+#define DEFAULT_MSGPROC     "default"
+#define HDS_DEFAULT_ID      "fsdef0"
+#define HDS_DEFAULT_TAG     "fileshare"
+#define HDS_DEFAULT_PATH    "/mnt/host"
+#define COMPAT_DEFAULT_DATA "fileshare\n/mnt/host\n"
+#define DBUS_SEND_EXTCON    "ExtCon"
+#define DBUS_SEND_SYSNOTI   "SysNoti"
+#define DEVICE_CHANGED      "device_changed"
+#define DBUS_MSG_BUF_SIZE   512
+#define MSG_GROUP_HDS       100
+#define HDS_ACTION_DEFAULT  99
+#define GROUP_MEMORY        30
 #define STATUS              15
 
 #define TID_NETWORK         1
@@ -68,199 +83,6 @@ enum
 #define TID_HDS_DETACH      5
 #define TID_SENSOR          6
 #define TID_VCONF           7
-
-extern pthread_t tid[MAX_CLIENT + 1];
-extern int g_fd[fdtype_max];
-extern bool exit_flag;
-extern int g_epoll_fd;
-extern struct epoll_event g_events[MAX_EVENTS];
-
-void writelog(const char* fmt, ...);
-
-#if defined(ENABLE_DLOG_OUT)
-#  define LOG_TAG           "EMULD"
-#  include <dlog/dlog.h>
-#  define LOGINFO LOGI
-#  define LOGERR LOGE
-#  define LOGDEBUG LOGD
-#  define LOGFAIL(expr, fmt, ...)  \
-        do {    \
-            if (expr)  \
-                LOGE(fmt, ##__VA_ARGS__);  \
-        } while (0)
-#else
-#  define LOG_TAG           "EMULD"
-#  include <dlog/dlog.h>
-#  define LOGINFO(fmt, ...)     \
-        do {    \
-            writelog(fmt, ##__VA_ARGS__);   \
-            LOGI(fmt, ##__VA_ARGS__);   \
-        } while (0)
-#  define LOGERR(fmt, ...)  \
-        do {    \
-            writelog(fmt, ##__VA_ARGS__);   \
-            LOGE(fmt, ##__VA_ARGS__);   \
-        } while (0)
-#  define LOGDEBUG(fmt, ...)    \
-        do {    \
-            writelog(fmt, ##__VA_ARGS__);   \
-            LOGD(fmt, ##__VA_ARGS__);   \
-        } while (0)
-#  define LOGFAIL(expr, fmt, ...)  \
-        do {    \
-            if (expr) {  \
-                writelog(fmt, ##__VA_ARGS__);  \
-                LOGE(fmt, ##__VA_ARGS__);  \
-            }  \
-        } while (0)
-#endif
-
-typedef unsigned short  CliSN;
-
-struct Cli
-{
-    Cli(CliSN clisn, int fdtype, int fd, unsigned short port) :
-        clisn(clisn), fdtype(fdtype), sockfd(fd), cli_port(port) {}
-
-    CliSN clisn;
-    int fdtype;
-    int sockfd;             /* client socket fds */
-    unsigned short cli_port;        /* client connection port */
-};
-
-typedef std::map<CliSN, Cli*> CliMap;
-
-void clipool_add(int fd, unsigned short port, const int fdtype);
-void clipool_delete(int fd);
-void close_cli(int cli_fd);
-
-bool send_to_cli(const int fd, char* data, const int len);
-bool send_to_all_ij(char* data, const int len);
-bool is_ij_exist();
-void stop_listen(void);
-
-bool epoll_ctl_add(const int fd);
-void userpool_add(int cli_fd, unsigned short cli_port, const int fdtype);
-void userpool_delete(int cli_fd);
-
-struct fd_info
-{
-    fd_info() : fd(-1){}
-    int fd;
-    int fdtype;
-};
-
-struct LXT_MESSAGE
-{
-    unsigned short length;
-    unsigned char group;
-    unsigned char action;
-    void *data;
-};
-
-typedef struct LXT_MESSAGE LXT_MESSAGE;
-
-struct ijcommand
-{
-    enum { CMD_SIZE = 48 };
-    ijcommand() : data(NULL)
-    {
-        memset(cmd, 0, CMD_SIZE);
-    }
-    ~ijcommand()
-    {
-        if (data)
-        {
-            free(data);
-            data = NULL;
-        }
-    }
-    char cmd[CMD_SIZE];
-    char* data;
-    fd_info fdinfo;
-
-    LXT_MESSAGE msg;
-};
-
-struct _auto_mutex
-{
-    _auto_mutex(pthread_mutex_t* t)
-    {
-        _mutex = t;
-        pthread_mutex_lock(_mutex);
-
-    }
-    ~_auto_mutex()
-    {
-        pthread_mutex_unlock(_mutex);
-    }
-
-    pthread_mutex_t* _mutex;
-};
-
-struct setting_device_param
-{
-    setting_device_param() : ActionID(0)
-    {
-        memset(type_cmd, 0, ID_SIZE);
-    }
-    unsigned char ActionID;
-    char type_cmd[ID_SIZE];
-};
-
-bool read_ijcmd(const int fd, ijcommand* ijcmd);
-int recv_data(int event_fd, char** r_databuf, int size);
-void recv_from_evdi(evdi_fd fd);
-bool accept_proc(const int server_fd);
-void get_guest_addr(void);
-void *register_connection(void* data);
-void destroy_connection(void);
-
-void set_vconf_cb(void);
-void send_to_ecs(const char* cat, int group, int action, char* data);
-void send_emuld_connection(void);
-void send_default_suspend_req(void);
-void send_default_mount_req(void);
-void systemcall(const char* param);
-int parse_val(char *buff, unsigned char data, char *parsbuf);
-
-#define DBUS_MSG_BUF_SIZE   512
-#define DBUS_SEND_SYSNOTI   "SysNoti"
-#define DBUS_SEND_EXTCON    "ExtCon"
-#define DEVICE_CHANGED      "device_changed"
-void dbus_send(const char* device, const char* target, const char* option);
-
-#define HDS_DEFAULT_ID      "fsdef0"
-#define HDS_DEFAULT_TAG     "fileshare"
-#define HDS_DEFAULT_PATH    "/mnt/host"
-#define COMPAT_DEFAULT_DATA "fileshare\n/mnt/host\n"
-#define HDS_ACTION_DEFAULT  99
-#define MSG_GROUP_HDS       100
-bool valid_hds_path(char* path);
-int try_mount(char* tag, char* path);
-void hds_unmount_all(void);
-
-#define IJTYPE_SUSPEND      "suspend"
-#define IJTYPE_HDS          "hds"
-#define IJTYPE_SYSTEM       "system"
-#define IJTYPE_GUEST        "guest"
-#define IJTYPE_CMD          "cmd"
-#define IJTYPE_PACKAGE      "package"
-#define IJTYPE_BOOT         "boot"
-#define IJTYPE_VCONF        "vconf"
-#define IJTYPE_LOCATION     "location"
-
-void *g_main_thread_cb(void *arg);
-void msgproc_suspend(ijcommand* ijcmd);
-void msgproc_system(ijcommand* ijcmd);
-void msgproc_package(ijcommand* ijcmd);
-void msgproc_hds(ijcommand* ijcmd);
-void msgproc_location(ijcommand* ijcmd);
-void* exec_cmd_thread(void *args);
-void msgproc_cmd(ijcommand* ijcmd);
-void msgproc_vconf(ijcommand* ijcmd);
-
-#define GROUP_MEMORY        30
 
 /* common vconf keys */
 #define VCONF_LOW_MEMORY    "memory/sysman/low_memory"
@@ -274,14 +96,6 @@ void msgproc_vconf(ijcommand* ijcmd);
 #define VCONF_SET 1
 #define VCONF_GET 0
 
-enum VCONF_TYPE {
-    SENSOR    = 0,
-    TELEPHONY = 1,
-    LOCATION  = 2,
-    TV        = 3,
-    MEMORY    = 4
-};
-
 struct vconf_res_type {
     char *vconf_key;
     char *vconf_val;
@@ -289,25 +103,36 @@ struct vconf_res_type {
     vconf_t vconf_type;
 };
 
-void add_vconf_map(VCONF_TYPE key, std::string value);
-void add_vconf_map_common(void);
-bool check_possible_vconf_key(std::string key);
-
-/*
- * For the multi-profile
- */
-bool extra_evdi_command(ijcommand* ijcmd);
-void add_vconf_map_profile(void);
-int get_vconf_status(char** value, vconf_t type, const char* key);
-
-static inline char* __tmpalloc(const int size)
+struct setting_device_param
 {
-    char* message = (char*)malloc(sizeof(char) * size);
-    if (!message) {
-        return NULL;
+    setting_device_param() : ActionID(0)
+    {
+        memset(type_cmd, 0, ID_SIZE);
     }
-    memset(message, 0, sizeof(char) * size);
-    return message;
-}
+    unsigned char ActionID;
+    char type_cmd[ID_SIZE];
+};
 
-#endif
+void add_vconf_map_common(void);
+void add_vconf_map_profile(void);
+void send_default_suspend_req(void);
+void send_default_mount_req(void);
+bool valid_hds_path(char* path);
+int try_mount(char* tag, char* path);
+void hds_unmount_all(void);
+void set_vconf_cb(void);
+void send_emuld_connection(void);
+void add_msg_proc_common(void);
+void add_msg_proc_ext(void);
+void dbus_send(const char* device, const char* target, const char* option);
+int parse_val(char *buff, unsigned char data, char *parsbuf);
+bool msgproc_hds(ijcommand* ijcmd);
+bool msgproc_cmd(ijcommand* ijcmd);
+bool msgproc_suspend(ijcommand* ijcmd);
+bool msgproc_system(ijcommand* ijcmd);
+bool msgproc_package(ijcommand* ijcmd);
+bool msgproc_vconf(ijcommand* ijcmd);
+bool msgproc_location(ijcommand* ijcmd);
+
+
+#endif // __EMULD_H__

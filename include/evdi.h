@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
  * Daiyoung Kim <daiyoung777.kim@samsung.com>
@@ -34,6 +35,7 @@
 #define __MAX_BUF_SIZE  1024
 
 #include <stdarg.h>
+#include <stdint.h>
 
 enum
 {
@@ -56,10 +58,6 @@ struct msg_info {
 };
 
 typedef int     evdi_fd;
-
-bool init_device(evdi_fd* ret_fd);
-
-evdi_fd open_device(void);
 
 bool ijmsg_send_to_evdi(evdi_fd fd, const char* cat, const char* data, const int len);
 bool send_to_evdi(evdi_fd fd, const char* msg, const int len);

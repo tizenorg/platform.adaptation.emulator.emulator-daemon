@@ -1,10 +1,11 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2000 - 2013 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
- * Jinhyung Choi <jinhyung2.choi@samsnung.com>
+ * Chulho Song <ch81.song@samsung.com>
+ * Jinhyung Choi <jinh0.choi@samsnung.com>
  * DaiYoung Kim <daiyoung777.kim@samsnung.com>
  * SooYoung Ha <yoosah.ha@samsnung.com>
  * Sungmin Ha <sungmin82.ha@samsung.com>
@@ -27,57 +28,130 @@
  *
  */
 
-#include <errno.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-
-#include "emuld.h"
-#include "synbuf.h"
-
+#include <fcntl.h>
+#include <dirent.h>
+#include <dlfcn.h>
 #include <E_DBus.h>
 #include <Ecore.h>
 
-#include <queue>
+#include "emuld.h"
 
-/* global definition */
-typedef std::queue<msg_info*> __msg_queue;
-__msg_queue g_msgqueue;
-
-int g_epoll_fd;
-int g_fd[fdtype_max];
 pthread_t tid[MAX_CLIENT + 1];
+int g_epoll_fd;
 struct epoll_event g_events[MAX_EVENTS];
-bool exit_flag = false;
+void* dl_handles[MAX_PLUGINS];
+int dl_count;
 
-static void init_fd(void)
+enum ioctl_cmd {
+    IOCTL_CMD_BOOT_DONE,
+};
+
+static void emuld_exit(void)
 {
-    register int i;
+    while (dl_count > 0)
+        dlclose(dl_handles[--dl_count]);
 
-    for(i = 0 ; i < fdtype_max ; i++)
+    msgproc_del(NULL, NULL, MSGPROC_PRIO_HIGH);
+    msgproc_del(NULL, NULL, MSGPROC_PRIO_MIDDLE);
+    msgproc_del(NULL, NULL, MSGPROC_PRIO_LOW);
+}
+
+static void init_plugins(void)
+{
+    DIR *dirp = NULL;
+    struct dirent *dir_ent = NULL;
+    char plugin_path[MAX_PATH] = {0, };
+    void* handle = NULL;
+    bool (*plugin_init)() = NULL;
+    char* error = NULL;
+
+    dirp = opendir(EMULD_PLUGIN_DIR);
+
+    if (!dirp)
     {
-        g_fd[i] = -1;
+        LOGWARN("Dir(%s) open failed. errno = %d\n", EMULD_PLUGIN_DIR, errno);
+        return;
+    }
+
+    while ((dir_ent = readdir(dirp)))
+    {
+        sprintf(plugin_path, "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
+
+        LOGDEBUG("Try to load plugin (%s)", plugin_path);
+
+        if (dl_count >= MAX_PLUGINS)
+        {
+            LOGWARN("Cannot load more plugins. (%s)", plugin_path);
+            continue;
+        }
+
+        handle = dlopen(plugin_path, RTLD_NOW);
+        if (!handle)
+        {
+            LOGWARN("File open failed : %s\n", dlerror());
+            continue;
+        }
+
+        plugin_init = (bool(*)())dlsym(handle, EMULD_PLUGIN_INIT_FN);
+        if ((error = dlerror()) != NULL)
+        {
+            LOGWARN("Could not found symbol : %s\n", error);
+            dlclose(handle);
+            continue;
+        }
+
+       if (!plugin_init()) {
+            LOGWARN("emuld_plugin_init failed (%s)", plugin_path);
+            dlclose(handle);
+            continue;
+        }
+
+        dl_handles[dl_count++] = handle;
+    }
+
+    closedir(dirp);
+}
+
+static void sig_handler(int signo)
+{
+    LOGINFO("received signal: %d. EXIT!", signo);
+
+    hds_unmount_all();
+
+    _exit(0);
+}
+
+static void add_sig_handler(int signo)
+{
+    sighandler_t sig;
+
+    sig = signal(signo, sig_handler);
+    if (sig == SIG_ERR) {
+        LOGERR("adding %d signal failed : %d", signo, errno);
     }
 }
 
-bool epoll_ctl_add(const int fd)
+static void send_to_kernel(void)
 {
-    struct epoll_event events;
-
-    events.events = EPOLLIN;    // check In event
-    events.data.fd = fd;
-
-    if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
-    {
-        LOGERR("Epoll control fails.");
-        return false;
+    if(ioctl(g_fd[fdtype_device], IOCTL_CMD_BOOT_DONE, NULL) == -1) {
+        LOGWARN("Failed to send ioctl to kernel");
+        return;
     }
+    LOGINFO("[DBUS] sent booting done to kernel");
+}
 
-    LOGINFO("[START] epoll events add fd success for server");
-    return true;
+static void boot_done(void *data, DBusMessage *msg)
+{
+    if (dbus_message_is_signal(msg,
+                DBUS_IFACE_BOOT_DONE,
+                BOOT_DONE_SIGNAL) != 0) {
+        LOGINFO("[DBUS] sending booting done to ecs.");
+        send_to_ecs(IJTYPE_BOOT, 0, 0, NULL);
+        LOGINFO("[DBUS] sending booting done to kernel for log.");
+        send_to_kernel();
+    }
 }
 
 static bool epoll_init(void)
@@ -93,144 +167,44 @@ static bool epoll_init(void)
     return true;
 }
 
-int recv_data(int event_fd, char** r_databuf, int size)
+static void init_fd(void)
 {
-    int recvd_size = 0;
-    int len = 0;
-    int getcnt = 0;
-    char* r_tmpbuf = NULL;
-    const int alloc_size = sizeof(char) * size + 1;
+    register int i;
 
-    r_tmpbuf = (char*)malloc(alloc_size);
-    if(r_tmpbuf == NULL)
+    for(i = 0 ; i < fdtype_max ; i++)
     {
-        return -1;
+        g_fd[i] = -1;
     }
-
-    char* databuf = (char*)malloc(alloc_size);
-    if(databuf == NULL)
-    {
-        free(r_tmpbuf);
-        *r_databuf = NULL;
-        return -1;
-    }
-
-    memset(databuf, '\0', alloc_size);
-
-    while(recvd_size < size)
-    {
-        memset(r_tmpbuf, '\0', alloc_size);
-        len = recv(event_fd, r_tmpbuf, size - recvd_size, 0);
-        if (len < 0) {
-            break;
-        }
-
-        memcpy(databuf + recvd_size, r_tmpbuf, len);
-        recvd_size += len;
-        getcnt++;
-        if(getcnt > MAX_GETCNT) {
-            break;
-        }
-    }
-    free(r_tmpbuf);
-    r_tmpbuf = NULL;
-
-    *r_databuf = databuf;
-
-    return recvd_size;
-}
-
-static int read_header(int fd, LXT_MESSAGE* packet)
-{
-    char* readbuf = NULL;
-    int readed = recv_data(fd, &readbuf, HEADER_SIZE);
-    if (readed <= 0){
-        if (readbuf)
-            free(readbuf);
-        return 0;
-    }
-    memcpy((void*) packet, (void*) readbuf, HEADER_SIZE);
-
-    if (readbuf)
-    {
-        free(readbuf);
-        readbuf = NULL;
-    }
-    return readed;
 }
 
 static void process_evdi_command(ijcommand* ijcmd)
 {
-    if (strcmp(ijcmd->cmd, IJTYPE_SUSPEND) == 0)
+    int prio = 0;
+    LOGDEBUG("process_evdi_command : cmd = %s\n", ijcmd->cmd);
+
+    for (prio = MSGPROC_PRIO_HIGH; prio != MSGPROC_PRIO_END; prio++)
     {
-        msgproc_suspend(ijcmd);
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_HDS) == 0)
-    {
-        msgproc_hds(ijcmd);
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_SYSTEM) == 0)
-    {
-        msgproc_system(ijcmd);
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_PACKAGE) == 0)
-    {
-        msgproc_package(ijcmd);
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_CMD) == 0)
-    {
-        msgproc_cmd(ijcmd);
-    }
-    else if (strcmp(ijcmd->cmd, IJTYPE_VCONF) == 0)
-    {
-        msgproc_vconf(ijcmd);
-    }
-    else
-    {
-        if (!extra_evdi_command(ijcmd)) {
-            LOGERR("Unknown packet: %s", ijcmd->cmd);
+        LOGDEBUG("process_evdi_command : msgproc_head[%d].next = %p", prio, msgproc_head[prio].next);
+        emuld_msgproc *pMsgProc = msgproc_head[prio].next;
+        while (pMsgProc)
+        {
+            LOGDEBUG("pMsgProc->name = %s, pMsgProc->cmd = %s, func = %p", pMsgProc->name, pMsgProc->cmd, pMsgProc->func);
+            if (strcmp(pMsgProc->cmd, ijcmd->cmd))
+            {
+                pMsgProc = pMsgProc->next;
+                continue;
+            }
+            if (!pMsgProc->func(ijcmd))
+            {
+                LOGINFO("Stopped more message handling by ( Plugin : %s, Command : %s )", pMsgProc->name, pMsgProc->cmd);
+                return;
+            }
+            pMsgProc = pMsgProc->next;
         }
     }
 }
 
-bool read_ijcmd(const int fd, ijcommand* ijcmd)
-{
-    int readed;
-    readed = read_header(fd, &ijcmd->msg);
-
-    LOGDEBUG("action: %d", ijcmd->msg.action);
-    LOGDEBUG("length: %d", ijcmd->msg.length);
-
-    if (readed <= 0)
-        return false;
-
-    // TODO : this code should removed, for telephony
-    if (ijcmd->msg.length == 0)
-    {
-        if (ijcmd->msg.action == 71)    // that's strange packet from telephony initialize
-        {
-            ijcmd->msg.length = 4;
-        }
-    }
-
-    if (ijcmd->msg.length <= 0)
-        return true;
-
-    if (ijcmd->msg.length > 0)
-    {
-        readed = recv_data(fd, &ijcmd->data, ijcmd->msg.length);
-        if (readed <= 0)
-        {
-            free(ijcmd->data);
-            ijcmd->data = NULL;
-            return false;
-        }
-
-    }
-    return true;
-}
-
-void recv_from_evdi(evdi_fd fd)
+static void recv_from_evdi(evdi_fd fd)
 {
     LOGDEBUG("recv_from_evdi");
     int readed;
@@ -296,22 +270,11 @@ void recv_from_evdi(evdi_fd fd)
 
         if (readed < ijcmd.msg.length)
         {
-            LOGERR("received data is insufficient");
+            LOGWARN("received data is insufficient");
         }
     }
 
     process_evdi_command(&ijcmd);
-}
-
-void writelog(const char* fmt, ...)
-{
-    FILE* logfile = fopen("/tmp/emuld.log", "a+");
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(logfile, fmt, args);
-    fprintf(logfile, "\n");
-    va_end(args);
-    fclose(logfile);
 }
 
 static bool server_process(void)
@@ -336,64 +299,94 @@ static bool server_process(void)
         }
         else
         {
-            LOGERR("unknown request event fd : (%d)", fd_tmp);
+            LOGWARN("unknown request event fd : (%d)", fd_tmp);
         }
     }
 
     return false;
 }
 
-enum ioctl_cmd {
-    IOCTL_CMD_BOOT_DONE,
-};
-
-void send_to_kernel(void)
+static bool epoll_ctl_add(const int fd)
 {
-    if(ioctl(g_fd[fdtype_device], IOCTL_CMD_BOOT_DONE, NULL) == -1) {
-        LOGERR("Failed to send ioctl to kernel");
-        return;
+    struct epoll_event events;
+
+    events.events = EPOLLIN;    // check In event
+    events.data.fd = fd;
+
+    if (epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, fd, &events) < 0 )
+    {
+        LOGERR("Epoll control fails.");
+        return false;
     }
-    LOGINFO("[DBUS] sent booting done to kernel");
+
+    LOGINFO("[START] epoll events add fd success for server");
+    return true;
 }
 
-#define DBUS_PATH_BOOT_DONE  "/Org/Tizen/System/DeviceD/Core"
-#define DBUS_IFACE_BOOT_DONE "org.tizen.system.deviced.core"
-#define BOOT_DONE_SIGNAL     "BootingDone"
-
-static void boot_done(void *data, DBusMessage *msg)
+static evdi_fd open_device(void)
 {
-    if (dbus_message_is_signal(msg,
-                DBUS_IFACE_BOOT_DONE,
-                BOOT_DONE_SIGNAL) != 0) {
-        LOGINFO("[DBUS] sending booting done to ecs.");
-        send_to_ecs(IJTYPE_BOOT, 0, 0, NULL);
-        LOGINFO("[DBUS] sending booting done to kernel for log.");
-        send_to_kernel();
+    evdi_fd fd;
+
+    fd = open(DEVICE_NODE_PATH, O_RDWR); //O_CREAT|O_WRONLY|O_TRUNC.
+    LOGDEBUG("evdi open fd is %d", fd);
+
+    if (fd < 0) {
+        LOGERR("open %s fail", DEVICE_NODE_PATH);
     }
+
+    return fd;
 }
 
-static void sig_handler(int signo)
+static bool set_nonblocking(evdi_fd fd)
 {
-    LOGINFO("received signal: %d. EXIT!", signo);
-
-    hds_unmount_all();
-
-    _exit(0);
-}
-
-static void add_sig_handler(int signo)
-{
-    sighandler_t sig;
-
-    sig = signal(signo, sig_handler);
-    if (sig == SIG_ERR) {
-        LOGERR("adding %d signal failed : %d", signo, errno);
+    int opts;
+    opts= fcntl(fd, F_GETFL);
+    if (opts < 0)
+    {
+        LOGERR("F_GETFL fcntl failed");
+        return false;
     }
+    opts = opts | O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, opts) < 0)
+    {
+        LOGERR("NONBLOCK fcntl failed");
+        return false;
+    }
+    return true;
 }
 
-void* handling_network(void* data)
+static bool init_device(evdi_fd* ret_fd)
+{
+    evdi_fd fd;
+
+    *ret_fd = -1;
+
+    fd = open_device();
+    if (fd < 0)
+        return false;
+
+    if (!set_nonblocking(fd))
+    {
+        close(fd);
+        return false;
+    }
+
+    if (!epoll_ctl_add(fd))
+    {
+        LOGERR("Epoll control fails.");
+        close(fd);
+        return false;
+    }
+
+    *ret_fd = fd;
+
+    return true;
+}
+
+static void* handling_network(void* data)
 {
     int ret = -1;
+    bool exit_flag = false;
 
     init_fd();
 
@@ -423,7 +416,10 @@ void* handling_network(void* data)
     }
 
     add_vconf_map_common();
+#ifndef UNKNOWN_PROFILE
     add_vconf_map_profile();
+#endif
+
     set_vconf_cb();
 
     send_emuld_connection();
@@ -432,8 +428,6 @@ void* handling_network(void* data)
     {
         exit_flag = server_process();
     }
-
-    stop_listen();
 
     hds_unmount_all();
 
@@ -486,6 +480,13 @@ int main( int argc , char *argv[])
     add_sig_handler(SIGINT);
     add_sig_handler(SIGTERM);
 
+    add_msg_proc_common();
+#ifndef UNKNOWN_PROFILE
+    add_msg_proc_ext();
+#endif
+
+    init_plugins();
+
     if (pthread_create(&conn_thread_t, NULL, register_connection, NULL) < 0) {
         LOGERR("network connection pthread create fail!");
         return -1;
@@ -517,6 +518,7 @@ int main( int argc , char *argv[])
         LOGERR("network connection pthread join is failed.");
     }
 
+    emuld_exit();
+
     return 0;
 }
-

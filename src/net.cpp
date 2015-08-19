@@ -1,7 +1,7 @@
 /*
  * emulator-daemon
  *
- * Copyright (c) 2015 Samsung Electronics Co., Ltd. All rights reserved.
+ * Copyright (c) 2013 Samsung Electronics Co., Ltd. All rights reserved.
  *
  * Contact:
  * Munkyu Im <munkyu.im@samsnung.com>

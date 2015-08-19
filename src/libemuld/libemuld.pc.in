@@ -1,0 +1,13 @@
+# Package Information for pkg-config
+
+prefix=@PREFIX@
+exec_prefix=@EXEC_PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: libemuld
+Description: Emulator daemon plugin library
+Version: @VERSION@
+Requires: vconf
+Libs: -L${libdir} -lemuld
+Cflags: -I${includedir}
