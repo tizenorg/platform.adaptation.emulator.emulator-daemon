@@ -147,6 +147,40 @@ void hds_unmount_all(void)
     systemcall(tmp);
 }
 
+static int do_mkdir(const char *dir)
+{
+    char tmp[MAX_PATH];
+    char *p = NULL;
+    size_t len;
+
+    if (!dir || *dir != '/')
+    {
+        LOGWARN("Invalid param. dir should be absolute path. dir = %s\n", dir);
+        return -1;
+    }
+
+    // Create directories by the size of "MAX_PATH"
+    // regardless of directory depth
+    snprintf(tmp, sizeof(tmp), "%s", dir);
+    len = strnlen(tmp, MAX_PATH);
+
+    if (tmp[len - 1] == '/')
+        tmp[len - 1] = 0;
+
+    for (p = tmp + 1; *p; p++)
+    {
+        if (*p == '/')
+        {
+            *p = 0;
+            if (mkdir(tmp, 0644) == -1 && errno != EEXIST)
+                return -1;
+            *p = '/';
+        }
+    }
+
+    return mkdir(tmp, 0644);
+}
+
 bool valid_hds_path(char* path) {
     struct stat buf;
     int ret = -1;
@@ -154,7 +188,7 @@ bool valid_hds_path(char* path) {
     ret = access(path, F_OK);
     if (ret == -1) {
         if (errno == ENOENT) {
-            ret = mkdir(path, 0644);
+            ret = do_mkdir(path);
             if (ret == -1) {
                 LOGERR("failed to create path : %d", errno);
                 return false;
