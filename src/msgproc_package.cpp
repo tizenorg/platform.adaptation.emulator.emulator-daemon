@@ -29,13 +29,16 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "emuld.h"
 
-#define MAX_PKGS_BUF        1024
-#define MAX_DATA_BUF        1024
+#define MAX_PKGS_BUF            1024
+#define MAX_DATA_BUF            1024
 #define PATH_PACKAGE_INSTALL    "/opt/usr/apps/tmp/sdk_tools/"
-#define RPM_CMD_QUERY       "-q"
-#define RPM_CMD_INSTALL     "-U"
+#define SCRIPT_INSTALL          "post-install.sh"
+#define RPM_CMD_QUERY           "-q"
+#define RPM_CMD_INSTALL         "-U"
 
 static pthread_mutex_t mutex_pkg = PTHREAD_MUTEX_INITIALIZER;
 
@@ -114,6 +117,28 @@ static void remove_package(char* data)
     free(copy);
 }
 
+static void run_script(char* addon)
+{
+    int ret = -1;
+    char file_name[MAX_PKGS_BUF];
+
+    snprintf(file_name, sizeof(file_name), "%s%s/%s", PATH_PACKAGE_INSTALL, addon, SCRIPT_INSTALL);
+    ret = access(file_name, F_OK);
+    if (ret != 0)
+    {
+        LOGWARN("[RunScript] file does not exist: %s", file_name);
+        return;
+    }
+
+    ret = chmod(file_name, 0755);
+    if (ret != 0)
+    {
+        LOGWARN("[RunScript] file permission setting is failed : [%d] %s", ret, file_name);
+        return;
+    }
+    systemcall(file_name);
+}
+
 static bool do_package(int action, char* data)
 {
     char token[] = ", ";
@@ -177,7 +202,10 @@ static bool do_package(int action, char* data)
     strcat(pkg_list, "2>&1");
 
     LOGINFO("[cmd] %s", pkg_list);
-    if ((action == 1 || action == 2) && do_rpm_execute(pkg_list)) {
+    if (action == 1 && do_rpm_execute(pkg_list)) {
+        return true;
+    } else if (action == 2 && do_rpm_execute(pkg_list)) {
+        run_script(addon);
         return true;
     }
 
