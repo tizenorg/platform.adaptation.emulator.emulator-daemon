@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.6)
 project(emuld CXX)
 
-SET(VERSION 0.9.15)
+SET(VERSION 0.10.4)
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
