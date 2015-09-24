@@ -30,6 +30,9 @@
 
 #include <stdio.h>
 #include "emuld.h"
+#include <bundle.h>
+#include <eventsystem.h>
+#include <vconf-internal-sysman-keys.h>
 
 static void* get_vconf_value(void* data)
 {
@@ -63,6 +66,7 @@ static void* set_vconf_value(void* data)
     pthread_detach(pthread_self());
 
     vconf_res_type *vrt = (vconf_res_type*)data;
+    int val = -1;
 
     if (!check_possible_vconf_key(vrt->vconf_key)) {
         LOGERR("%s is not available key.");
@@ -88,7 +92,7 @@ static void* set_vconf_value(void* data)
 
         /* TODO: to be implemented another type */
         if (vrt->vconf_type == VCONF_TYPE_INT) {
-            int val = atoi(vrt->vconf_val);
+            val = atoi(vrt->vconf_val);
             vconf_set_int(vrt->vconf_key, val);
             LOGDEBUG("key: %s, val: %d", vrt->vconf_key, val);
         } else if (vrt->vconf_type == VCONF_TYPE_DOUBLE) {
@@ -102,8 +106,37 @@ static void* set_vconf_value(void* data)
         } else {
             LOGERR("undefined vconf type");
         }
-    }
 
+        /* Low memory event */
+        if (!strcmp(vrt->vconf_key, VCONF_LOW_MEMORY))
+        {
+            bundle* b = bundle_create();
+            if (!b) {
+                LOGWARN("failed to create bundle");
+                goto out;
+            }
+            switch (val)
+            {
+                case VCONFKEY_SYSMAN_LOW_MEMORY_NORMAL:
+                    bundle_add_str(b, EVT_KEY_LOW_MEMORY, EVT_VAL_MEMORY_NORMAL);
+                    eventsystem_send_system_event(SYS_EVENT_LOW_MEMORY, b);
+                    break;
+                case VCONFKEY_SYSMAN_LOW_MEMORY_SOFT_WARNING:
+                    bundle_add_str(b, EVT_KEY_LOW_MEMORY, EVT_VAL_MEMORY_SOFT_WARNING);
+                    eventsystem_send_system_event(SYS_EVENT_LOW_MEMORY, b);
+                    break;
+                case VCONFKEY_SYSMAN_LOW_MEMORY_HARD_WARNING:
+                    bundle_add_str(b, EVT_KEY_LOW_MEMORY, EVT_VAL_MEMORY_HARD_WARNING);
+                    eventsystem_send_system_event(SYS_EVENT_LOW_MEMORY, b);
+                    break;
+                default:
+                    LOGWARN("undefined low memory value(%d)", val);
+                    break;
+            }
+            bundle_free(b);
+        }
+    }
+out:
     free(vrt->vconf_key);
     free(vrt->vconf_val);
     free(vrt);

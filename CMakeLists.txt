@@ -93,6 +93,7 @@ SET(PKG_MODULE
     ecore
     edbus
     capi-network-connection
+    eventsystem
 )
 
 pkg_check_modules(PKGS REQUIRED ${PKG_MODULE})

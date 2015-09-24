@@ -14,6 +14,7 @@ BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(edbus)
 BuildRequires: pkgconfig(ecore)
 BuildRequires: pkgconfig(capi-network-connection)
+BuildRequires: pkgconfig(eventsystem)
 
 %description
 A emulator daemon is used for communication between guest and host
