@@ -87,7 +87,7 @@ FOREACH(flag ${PKGS_CFLAGS})
 ENDFOREACH(flag)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EXTRA_CFLAGS} -Wall -fPIE -Werror")
-SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed -pie -Werror")
+SET(CMAKE_EXE_LINKER_FLAGS "-Wl,--as-needed -pie -Werror -Wall")
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SRCS})
 
