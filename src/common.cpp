@@ -129,6 +129,11 @@ int parse_val(char *buff, unsigned char data, char *parsbuf)
     return 0;
 }
 
+enum emuld_system_action {
+    EMULD_SYSTEM_ACTION_FORCE_CLOSE,
+    EMULD_SYSTEM_ACTION_REBOOT
+};
+
 void powerdown_by_force(void)
 {
     struct timeval now;
@@ -154,17 +159,28 @@ void powerdown_by_force(void)
 
 void msgproc_system(ijcommand* ijcmd)
 {
-    LOGDEBUG("msgproc_system");
+    int action = ijcmd->msg.action;
+    LOGDEBUG("msgproc_system with %d action", action);
 
-    LOGINFO("/etc/rc.d/rc.shutdown, sync, reboot(RB_POWER_OFF)");
+    if (action == EMULD_SYSTEM_ACTION_FORCE_CLOSE) {
+        LOGINFO("/etc/rc.d/rc.shutdown, sync, reboot(RB_POWER_OFF)");
 
-    sync();
+        sync();
 
-    systemcall("/etc/rc.d/rc.shutdown &");
+        systemcall("/etc/rc.d/rc.shutdown &");
 
-    gettimeofday(&tv_start_poweroff, NULL);
+        gettimeofday(&tv_start_poweroff, NULL);
 
-    powerdown_by_force();
+        powerdown_by_force();
+    } else if (action == EMULD_SYSTEM_ACTION_REBOOT) {
+        LOGINFO("sync, unmount all hds");
+
+        sync();
+
+        hds_unmount_all();
+    } else {
+        LOGERR("unknown system action %d", action);
+    }
 }
 
 static int lock_state = SUSPEND_UNLOCK;
@@ -908,6 +924,13 @@ int try_mount(char* tag, char* path)
         return errno;
 
     return ret;
+}
+
+void hds_unmount_all(void)
+{
+    char tmp[MAX_DATA_BUF];
+    snprintf(tmp, sizeof(tmp), "%s", "umount -a -t 9p");
+    systemcall(tmp);
 }
 
 static bool get_tag_path(char* data, char** tag, char** path)

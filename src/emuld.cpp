@@ -375,6 +375,9 @@ static void boot_done(void *data, DBusMessage *msg)
 static void sig_handler(int signo)
 {
     LOGINFO("received signal: %d. EXIT!", signo);
+
+    hds_unmount_all();
+
     _exit(0);
 }
 
@@ -431,6 +434,8 @@ void* handling_network(void* data)
     }
 
     stop_listen();
+
+    hds_unmount_all();
 
     exit(0);
 }

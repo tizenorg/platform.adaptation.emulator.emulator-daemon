@@ -226,6 +226,7 @@ void dbus_send(const char* device, const char* target, const char* option);
 #define MSG_GROUP_HDS       100
 bool valid_hds_path(char* path);
 int try_mount(char* tag, char* path);
+void hds_unmount_all(void);
 
 #define IJTYPE_SUSPEND      "suspend"
 #define IJTYPE_HDS          "hds"
