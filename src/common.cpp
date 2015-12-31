@@ -305,6 +305,7 @@ static void remove_package(char* data)
     char pkg_list[MAX_PKGS_BUF];
     char *addon = NULL;
     char *copy = strdup(data);
+    size_t remain;
     if (copy == NULL) {
         LOGERR("Failed to copy data.");
         return;
@@ -316,6 +317,20 @@ static void remove_package(char* data)
 
     strcat(pkg_list, PATH_PACKAGE_INSTALL);
     addon = strtok(copy, token);
+
+    if (addon == NULL) {
+        LOGERR("Addon is null");
+        free(copy);
+        return;
+    }
+
+    remain = MAX_PKGS_BUF - strnlen(pkg_list, MAX_PKGS_BUF);
+
+    if (remain < strnlen(addon, MAX_PKGS_BUF)) {
+        LOGERR("Cannot copy add-on name. Insufficient buf size");
+        free(copy);
+        return;
+    }
     strcat(pkg_list, addon);
 
     LOGINFO("remove packages: %s", pkg_list);
@@ -331,6 +346,12 @@ static bool do_package(int action, char* data)
     char *pkg = NULL;
     char *addon = NULL;
     char pkg_list[MAX_PKGS_BUF];
+    size_t remain;
+
+    if (data == NULL) {
+        LOGERR("Add on package list is empty");
+        return false;
+    }
 
     memset(pkg_list, 0, sizeof(pkg_list));
 
@@ -348,6 +369,11 @@ static bool do_package(int action, char* data)
     }
     addon = strtok(data, token); // for addon path
 
+    if (addon == NULL) {
+        LOGERR("Addon is null");
+        return false;
+    }
+
     pkg = strtok(NULL, token);
     while (pkg != NULL) {
         if (action == 1) {
@@ -359,6 +385,14 @@ static bool do_package(int action, char* data)
             strcat(pkg_list, addon);
             strcat(pkg_list, "/");
         }
+
+        remain = MAX_PKGS_BUF - strnlen(pkg_list, MAX_PKGS_BUF) - strlen(" 2>&1");
+
+        if (remain < strnlen(addon, MAX_PKGS_BUF)) {
+            LOGERR("Cannot copy package name. Insufficient buf size");
+            return false;
+        }
+
         strcat(pkg_list, pkg);
 
         pkg = strtok(NULL, token);
@@ -773,6 +807,11 @@ static void* getting_location(void* data)
 
     char* msg = 0;
     LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+    if (!packet)
+    {
+        LOGERR("Failed to allocate packet");
+        return NULL;
+    }
 
     switch(param->ActionID)
     {
@@ -818,9 +857,9 @@ static void* getting_location(void* data)
         free(msg);
         msg = 0;
     }
-    if (packet != NULL) {
-        free(packet);
-    }
+
+    free(packet);
+
     if (param)
         delete param;
 
@@ -955,9 +994,10 @@ static bool get_tag_path(char* data, char** tag, char** path)
 
 static bool secure_hds_path(char* path) {
     int index = 0;
-    int len = sizeof(hds_available_path);
+    int len = sizeof(hds_available_path) / sizeof(char*);
     for (index = 0; index < len; index++) {
-        if (!strncmp(path, hds_available_path[index], strlen(hds_available_path[index]))) {
+        if (hds_available_path[index] &&
+            !strncmp(path, hds_available_path[index], strlen(hds_available_path[index]))) {
             return true;
         }
     }
@@ -1117,7 +1157,6 @@ void msgproc_hds(ijcommand* ijcmd)
             }
             LOGERR("mount hds pthread create fail!");
             send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 2, tag);
-            free(data);
         }
     } else if (ijcmd->msg.action == 2) {
         if (pthread_create(&tid[TID_HDS_DETACH], NULL, umount_hds, (void*)data) != 0) {
@@ -1128,12 +1167,11 @@ void msgproc_hds(ijcommand* ijcmd)
             }
             LOGERR("umount hds pthread create fail!");
             send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 4, tag);
-            free(data);
         }
     } else {
         LOGERR("unknown action cmd.");
-        free(data);
     }
+    free(data);
 }
 
 void send_default_mount_req()
