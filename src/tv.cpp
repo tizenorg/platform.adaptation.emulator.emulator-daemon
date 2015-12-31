@@ -442,7 +442,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
 
         /* send current state to Emulator Control Panel */
         tmp = (char *)malloc(tmplen);
-        if (tmp) {
+        if (tmp && packet) {
             memset(command, 0, sizeof(command));
             packet->length = 16;
             packet->group = 15;
@@ -452,9 +452,12 @@ bool msgproc_extinput(ijcommand* ijcmd)
                     extinput[0], extinput[1], extinput[2], extinput[3], extinput[4], extinput[5], extinput[6], extinput[7]);
             memcpy(tmp + HEADER_SIZE, command, packet->length);
             ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_EI, (const char *)tmp, tmplen);
-            free(tmp);
         }
 
+        if (tmp) {
+            free(tmp);
+            tmp = NULL;
+        }
         if (packet) {
             free(packet);
             packet = NULL;

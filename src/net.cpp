@@ -366,6 +366,7 @@ static int get_network_info(char str[], int str_size)
     size_t len = 0;
     char *line = NULL;
     FILE *fp = fopen(PROC_CMDLINE_PATH, "r");
+    int ret = 0;
 
     if (fp == NULL) {
         LOGERR("fail to read /proc/cmdline");
@@ -378,12 +379,16 @@ static int get_network_info(char str[], int str_size)
 
     if (get_str_cmdline(line, IP_SUFFIX, str, str_size) < 1) {
         LOGINFO("could not get the (%s) value from cmdline. static ip does not set.", IP_SUFFIX);
-        fclose(fp);
-        return -1;
+        ret = -1;
     }
+
+    if(line)
+        free(line);
     fclose(fp);
+
     LOGINFO("succeeded to get guest_net: %s", str);
-    return 0;
+
+    return ret;
 }
 
 void set_guest_addr()
