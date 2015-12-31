@@ -442,7 +442,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
 
         /* send current state to Emulator Control Panel */
         tmp = (char *)malloc(tmplen);
-        if (tmp) {
+        if (tmp && packet) {
             memset(command, 0, sizeof(command));
             packet->length = 16;
             packet->group = 15;
