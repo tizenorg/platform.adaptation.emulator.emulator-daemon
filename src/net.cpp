@@ -369,12 +369,19 @@ static int get_network_info(char str[], int str_size)
     int ret = 0;
 
     if (fp == NULL) {
-        LOGERR("fail to read /proc/cmdline");
+        LOGERR("failed to open /proc/cmdline");
         return -1;
     }
+
     if (getline(&line, &len, fp) != -1) {
         LOGINFO("line: %s", line);
         LOGINFO("len: %d", len);
+    }
+
+    if (!line)
+    {
+        LOGERR("failed to read /proc/cmdline");
+        return -1;
     }
 
     if (get_str_cmdline(line, IP_SUFFIX, str, str_size) < 1) {
@@ -382,8 +389,7 @@ static int get_network_info(char str[], int str_size)
         ret = -1;
     }
 
-    if(line)
-        free(line);
+    free(line);
     fclose(fp);
 
     LOGINFO("succeeded to get guest_net: %s", str);

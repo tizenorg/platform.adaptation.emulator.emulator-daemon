@@ -331,7 +331,8 @@ static void remove_package(char* data)
         free(copy);
         return;
     }
-    strcat(pkg_list, addon);
+
+    strncat(pkg_list, addon, remain - 1); // terminating null byte
 
     LOGINFO("remove packages: %s", pkg_list);
 
@@ -393,7 +394,7 @@ static bool do_package(int action, char* data)
             return false;
         }
 
-        strcat(pkg_list, pkg);
+        strncat(pkg_list, pkg, remain - 1); // terminating null byte
 
         pkg = strtok(NULL, token);
     }
