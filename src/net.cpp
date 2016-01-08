@@ -381,6 +381,7 @@ static int get_network_info(char str[], int str_size)
     if (!line)
     {
         LOGERR("failed to read /proc/cmdline");
+        fclose(fp);
         return -1;
     }
 

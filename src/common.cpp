@@ -383,7 +383,8 @@ static bool do_package(int action, char* data)
         strcat(pkg_list, " ");
         if (action == 2) {
             strcat(pkg_list, PATH_PACKAGE_INSTALL);
-            strcat(pkg_list, addon);
+            remain = MAX_PKGS_BUF - strnlen(pkg_list, MAX_PKGS_BUF) - strlen("/");
+            strncat(pkg_list, addon, remain - 1); // terminating null byte
             strcat(pkg_list, "/");
         }
 
