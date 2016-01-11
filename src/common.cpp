@@ -42,6 +42,12 @@
 #include "emuld.h"
 
 #define CMD_BUF 1024
+#define OPT_SIZE 64
+#define P9_FCALL_SIZE 20
+#define DEFAULT_PAYLOAD_SIZE 8192
+#define MAX_PAYLOAD_SIZE 65536
+
+unsigned int msize = MAX_PAYLOAD_SIZE;
 
 void add_vconf_map_common(void)
 {
@@ -131,11 +137,24 @@ int get_vconf_status(char** value, vconf_t type, const char* key)
 int try_mount(char* tag, char* path)
 {
     int ret = 0;
+    char mount_opt[OPT_SIZE] = {0, };
 
-    ret = mount(tag, path, "9p", 0,
-                "trans=virtio,version=9p2000.L,msize=65536");
+    snprintf(mount_opt, sizeof(mount_opt), "trans=virtio,version=9p2000.L,msize=%u", msize - P9_FCALL_SIZE);
+
+
+    ret = mount(tag, path, "9p", 0, mount_opt);
+
     if (ret == -1)
+    {
+        if (errno == ENOMEM && msize > DEFAULT_PAYLOAD_SIZE)
+        {
+            LOGWARN("Mount failed with ENOMEM. Payload size (%u)", msize);
+            msize = msize >> 1;
+            LOGWARN("Shrink payload size (%u)", msize);
+        }
         return errno;
+    }
+    msize = MAX_PAYLOAD_SIZE;
 
     return ret;
 }
@@ -172,13 +191,13 @@ static int do_mkdir(const char *dir)
         if (*p == '/')
         {
             *p = 0;
-            if (mkdir(tmp, 0644) == -1 && errno != EEXIST)
+            if (mkdir(tmp, 0755) == -1 && errno != EEXIST)
                 return -1;
             *p = '/';
         }
     }
 
-    return mkdir(tmp, 0644);
+    return mkdir(tmp, 0755);
 }
 
 bool valid_hds_path(char* path) {
