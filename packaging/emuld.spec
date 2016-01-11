@@ -132,12 +132,12 @@ chmod 770 %{_prefix}/bin/emuld
 %defattr(-,root,root,-)
 %manifest libemuld.manifest
 /usr/share/license/libemuld
-%{_libdir}/libemuld.so.*
+%{_libdir}/libemuld.so*
 
 %files -n libemuld-devel
 %defattr(-,root,root,-)
 %{_includedir}/libemuld/*.h
-%{_libdir}/libemuld.so
+%{_libdir}/libemuld.so*
 %{_libdir}/pkgconfig/libemuld.pc
 
 %changelog
