@@ -117,8 +117,9 @@ rm -rf install_manifest.txt
 chmod 770 %{_prefix}/bin/emuld
 
 %post -n libemuld -p /sbin/ldconfig
-
+%post -n libemuld-devel -p /sbin/ldconfig
 %postun -n libemuld -p /sbin/ldconfig
+%postun -n libemuld-devel -p /sbin/ldconfig
 
 %files -n emuld
 %defattr(-,root,root,-)
@@ -132,12 +133,12 @@ chmod 770 %{_prefix}/bin/emuld
 %defattr(-,root,root,-)
 %manifest libemuld.manifest
 /usr/share/license/libemuld
-%{_libdir}/libemuld.so.*
+%{_libdir}/libemuld.so*
 
 %files -n libemuld-devel
 %defattr(-,root,root,-)
 %{_includedir}/libemuld/*.h
-%{_libdir}/libemuld.so
+%{_libdir}/libemuld.so*
 %{_libdir}/pkgconfig/libemuld.pc
 
 %changelog
