@@ -166,7 +166,7 @@ int get_voice_cmd()
 int send_guide_me()
 {
 
-    sprintf(s1, "%s", "guide me");
+    snprintf(s1, 10, "%s", "guide me");
 
     si_voice_result_data_s t_voice;
     t_voice.handle = 0;
@@ -183,7 +183,7 @@ int send_guide_me()
 int send_describe()
 {
 
-    sprintf(s1, "%s", "describe");
+    snprintf(s1, 10, "%s", "describe");
 
     si_voice_result_data_s t_voice;
     t_voice.handle = 0;
@@ -200,7 +200,7 @@ int send_describe()
 int send_left()
 {
 
-    sprintf(s1, "%s", "left");
+    snprintf(s1, 10, "%s", "left");
 
     si_voice_result_data_s t_voice;
     t_voice.m_Domain = 20;
@@ -216,7 +216,7 @@ int send_left()
 int send_right()
 {
 
-    sprintf(s1, "%s", "right");
+    snprintf(s1, 10, "%s", "right");
 
     si_voice_result_data_s t_voice;
     t_voice.m_Domain = 20;
@@ -244,11 +244,12 @@ bool msgproc_gesture(ijcommand* ijcmd)
     int command, ret, data;
     const int tmpsize = ijcmd->msg.length;
 
-    char* data_p = NULL;
+    char *data_p = NULL;
     char token[] = "\n";
     char tmpdata[tmpsize+1];
-    char* s_cnt = NULL;
+    char *s_cnt = NULL;
     int cnt = 0;
+    char *saveptr;
 
     if (!SI_INIT) {
         ret = InitServer();
@@ -264,10 +265,10 @@ bool msgproc_gesture(ijcommand* ijcmd)
     memset(tmpdata, 0, tmpsize+1);
     memcpy(tmpdata, ijcmd->data, tmpsize);
 
-    s_cnt = strtok(tmpdata, token);
+    s_cnt = strtok_r(tmpdata, token, &saveptr);
     cnt = atoi(s_cnt);
 
-    while(data_p = strtok(NULL, token)) {
+    while(data_p = strtok_r(NULL, token, &saveptr)) {
         data = atoi(data_p);
     }
     printf("msgproc_gesture action : %d\n", ijcmd->msg.action);
@@ -418,7 +419,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
         }
         /* get hdmi plugged state */
         for (i = 0; i < HDMI_CNT; i++) {
-            sprintf(command, "memory/sysman/hdmi%d", i+1);
+            snprintf(command, sizeof(command), "memory/sysman/hdmi%d", i+1);
             if (vconf_get_int(command, &onoff_state)) {
                 onoff_state = 0;
             }
@@ -426,7 +427,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
         }
         /* get av plugged state */
         for (i = 0; i < AV_CNT; i++) {
-            sprintf(command, "memory/sysman/av%d", i+1);
+            snprintf(command, sizeof(command), "memory/sysman/av%d", i+1);
             if (vconf_get_int(command, &onoff_state)) {
                 onoff_state = 0;
             }
@@ -434,7 +435,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
         }
         /* get comp plugged state */
         for (i = 0; i < COMP_CNT; i++) {
-            sprintf(command, "memory/sysman/comp%d", i+1);
+            snprintf(command, sizeof(command), "memory/sysman/comp%d", i+1);
             if (vconf_get_int(command, &onoff_state)) {
                 onoff_state = 0;
             }
@@ -449,7 +450,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
             packet->group = 15;
             packet->action = 211;
             memcpy(tmp, packet, HEADER_SIZE);
-            sprintf(command, "%d:%d:%d:%d:%d:%d:%d:%d:",
+            snprintf(command, sizeof(command), "%d:%d:%d:%d:%d:%d:%d:%d:",
                     extinput[0], extinput[1], extinput[2], extinput[3], extinput[4], extinput[5], extinput[6], extinput[7]);
             memcpy(tmp + HEADER_SIZE, command, packet->length);
             ijmsg_send_to_evdi(g_fd[fdtype_device], IJTYPE_EI, (const char *)tmp, tmplen);
@@ -469,12 +470,13 @@ bool msgproc_extinput(ijcommand* ijcmd)
         char *section = NULL;
         unsigned int number = 0;
         unsigned int state = 0;
+        char *saveptr;
         memset(plugged, '\0', sizeof(plugged));
         memcpy(plugged, ijcmd->data, ijcmd->msg.length);
 
-        section = strtok(plugged, token);
+        section = strtok_r(plugged, token, &saveptr);
         number = (unsigned int)atoi(section);
-        section = strtok(NULL, token);
+        section = strtok_r(NULL, token, &saveptr);
         state = (unsigned int)atoi(section);
 
         if (number > MAX_EXTINPUT_COUNT) {
@@ -487,19 +489,19 @@ bool msgproc_extinput(ijcommand* ijcmd)
         case EXTINPUT_HDMI2:
         case EXTINPUT_HDMI3:
         case EXTINPUT_HDMI4:
-            sprintf(command, "vconftool set -t int memory/sysman/hdmi%d %d -i -f", number, state);
+            snprintf(command, sizeof(command), "vconftool set -t int memory/sysman/hdmi%d %d -i -f", number, state);
             break;
         case EXTINPUT_AV1:
-            sprintf(command, "vconftool set -t int memory/sysman/av1 %d -i -f", state);
+            snprintf(command, sizeof(command), "vconftool set -t int memory/sysman/av1 %d -i -f", state);
             break;
         case EXTINPUT_AV2:
-            sprintf(command, "vconftool set -t int memory/sysman/av2 %d -i -f", state);
+            snprintf(command, sizeof(command), "vconftool set -t int memory/sysman/av2 %d -i -f", state);
             break;
         case EXTINPUT_COMP1:
-            sprintf(command, "vconftool set -t int memory/sysman/comp1 %d -i -f", state);
+            snprintf(command, sizeof(command), "vconftool set -t int memory/sysman/comp1 %d -i -f", state);
             break;
         case EXTINPUT_COMP2:
-            sprintf(command, "vconftool set -t int memory/sysman/comp2 %d -i -f", state);
+            snprintf(command, sizeof(command), "vconftool set -t int memory/sysman/comp2 %d -i -f", state);
             break;
         }
         extinput[number-1] = state;
