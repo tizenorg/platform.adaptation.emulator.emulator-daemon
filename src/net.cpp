@@ -430,7 +430,7 @@ void set_guest_addr()
             LOGERR("Socket open error");
             return;
         }
-        strcpy(ifrq.ifr_name, "eth0");
+        strncpy(ifrq.ifr_name, "eth0", sizeof("eth0"));
         while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0) {
             /* while to get ip address */
             usleep(100);
