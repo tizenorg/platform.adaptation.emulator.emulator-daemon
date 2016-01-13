@@ -61,8 +61,9 @@ bool msgproc_add(const char* name, const char* cmd, msgproc func, msgproc_prio p
         LOGWARN("Failed to allocate memory");
         return false;
     }
-    strcpy(pMsgProc->name, name);
-    strcpy(pMsgProc->cmd, cmd);
+    memset(pMsgProc, 0, sizeof(emuld_msgproc));
+    strncpy(pMsgProc->name, name, NAME_LEN - 1);
+    strncpy(pMsgProc->cmd, cmd, CMD_SIZE - 1);
     pMsgProc->func = func;
     pMsgProc->next = NULL;
     pPrev->next = pMsgProc;

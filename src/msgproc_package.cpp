@@ -55,7 +55,7 @@ static bool do_rpm_execute(char* pkgs)
 
     memset(buf, 0, sizeof(buf));
     while(fgets(buf, sizeof(buf), fp)) {
-        LOGINFO("[rpm]%s", buf);
+        LOGINFO("[rpm] %s", buf);
         memset(buf, 0, sizeof(buf));
     }
 
@@ -82,6 +82,7 @@ static void remove_package(char* data)
     char *addon = NULL;
     char *copy = strdup(data);
     size_t remain;
+    char *saveptr;
     if (copy == NULL) {
         LOGERR("Failed to copy data.");
         return;
@@ -89,10 +90,10 @@ static void remove_package(char* data)
 
     memset(pkg_list, 0, sizeof(pkg_list));
 
-    strcpy(pkg_list, "rm -rf ");
+    strncpy(pkg_list, "rm -rf ", sizeof("rm -rf "));
 
-    strcat(pkg_list, PATH_PACKAGE_INSTALL);
-    addon = strtok(copy, token);
+    strncat(pkg_list, PATH_PACKAGE_INSTALL, sizeof(PATH_PACKAGE_INSTALL));
+    addon = strtok_r(copy, token, &saveptr);
 
     if (addon == NULL) {
         LOGERR("Addon is null");
@@ -146,6 +147,7 @@ static bool do_package(int action, char* data)
     char *addon = NULL;
     char pkg_list[MAX_PKGS_BUF];
     size_t remain;
+    char *saveptr;
 
     if (data == NULL) {
         LOGERR("Add on package list is empty");
@@ -154,36 +156,36 @@ static bool do_package(int action, char* data)
 
     memset(pkg_list, 0, sizeof(pkg_list));
 
-    strcpy(pkg_list, "rpm");
+    strncpy(pkg_list, "rpm", sizeof("rpm"));
 
     if (action == 1) {
-        strcat(pkg_list, " ");
-        strcat(pkg_list, RPM_CMD_QUERY);
+        strncat(pkg_list, " ", sizeof(" "));
+        strncat(pkg_list, RPM_CMD_QUERY, sizeof(RPM_CMD_QUERY));
     } else if (action == 2) {
-        strcat(pkg_list, " ");
-        strcat(pkg_list, RPM_CMD_INSTALL);
+        strncat(pkg_list, " ", sizeof(" "));
+        strncat(pkg_list, RPM_CMD_INSTALL, sizeof(RPM_CMD_INSTALL));
     } else {
         LOGERR("Unknown action.");
         return false;
     }
-    addon = strtok(data, token); // for addon path
+    addon = strtok_r(data, token, &saveptr); // for addon path
 
     if (addon == NULL) {
         LOGERR("Addon is null");
         return false;
     }
 
-    pkg = strtok(NULL, token);
+    pkg = strtok_r(NULL, token, &saveptr);
     while (pkg != NULL) {
         if (action == 1) {
             pkg[strlen(pkg) - 4] = 0; //remove .rpm
         }
-        strcat(pkg_list, " ");
+        strncat(pkg_list, " ", sizeof(" "));
         if (action == 2) {
-            strcat(pkg_list, PATH_PACKAGE_INSTALL);
+            strncat(pkg_list, PATH_PACKAGE_INSTALL, sizeof(PATH_PACKAGE_INSTALL));
             remain = MAX_PKGS_BUF - strnlen(pkg_list, MAX_PKGS_BUF) - strlen("/");
             strncat(pkg_list, addon, remain - 1); // terminating null byte
-            strcat(pkg_list, "/");
+            strncat(pkg_list, "/", sizeof("/"));
         }
 
         remain = MAX_PKGS_BUF - strnlen(pkg_list, MAX_PKGS_BUF) - strlen(" 2>&1");
@@ -195,11 +197,10 @@ static bool do_package(int action, char* data)
 
         strncat(pkg_list, pkg, remain - 1); // terminating null byte
 
-        pkg = strtok(NULL, token);
+        pkg = strtok_r(NULL, token, &saveptr);
     }
 
-    strcat(pkg_list, " ");
-    strcat(pkg_list, "2>&1");
+    strncat(pkg_list, " 2>&1", sizeof(" 2>&1"));
 
     LOGINFO("[cmd] %s", pkg_list);
     if (action == 1 && do_rpm_execute(pkg_list)) {
