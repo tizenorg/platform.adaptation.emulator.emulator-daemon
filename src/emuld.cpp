@@ -62,7 +62,7 @@ static void init_plugins(void)
 {
     DIR *dirp = NULL;
     struct dirent *dir_ent = NULL;
-    char plugin_path[MAX_PATH] = {0, };
+    char plugin_path[MAX_PATH];
     void* handle = NULL;
     bool (*plugin_init)() = NULL;
     char* error = NULL;
@@ -77,7 +77,7 @@ static void init_plugins(void)
 
     while ((dir_ent = readdir(dirp)))
     {
-        sprintf(plugin_path, "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
+        snprintf(plugin_path, sizeof(plugin_path), "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
 
         LOGDEBUG("Try to load plugin (%s)", plugin_path);
 
