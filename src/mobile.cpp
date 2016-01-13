@@ -145,57 +145,57 @@ int parse_motion_data(int len, char *buffer)
     switch(x)
     {
     case 1: // double tap
-        sprintf(command, "vconftool set -t int memory/private/sensor/800004 %d -i -f", SENSOR_MOTION_DOUBLETAP_DETECTION);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800004 %d -i -f", SENSOR_MOTION_DOUBLETAP_DETECTION);
         systemcall(command);
     //  memset(command, '\0', sizeof(command));
     //  sprintf(command, "vconftool set -t int memory/private/sensor/800004 %d -i -f", SENSOR_MOTION_DOUBLETAP_NONE);
     //  systemcall(command);
         break;
     case 2: // shake start
-        sprintf(command, "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_DETECTED);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_DETECTED);
         systemcall(command);
         memset(command, '\0', sizeof(command));
-        sprintf(command, "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_CONTINUING);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_CONTINUING);
         systemcall(command);
         break;
     case 3: // shake stop
-        sprintf(command, "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_FINISHED);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800002 %d -i -f", SENSOR_MOTION_SHAKE_FINISHED);
         systemcall(command);
         break;
     case 4: // snap x+
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_X);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_X);
         systemcall(command);
         break;
     case 5: // snap x-
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_X);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_X);
         systemcall(command);
         break;
     case 6: // snap y+
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_Y);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_Y);
         systemcall(command);
         break;
     case 7: // snap y-
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_Y);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_Y);
         systemcall(command);
         break;
     case 8: // snap z+
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_Z);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_Z);
         systemcall(command);
         break;
     case 9: // snap z-
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_Z);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_Z);
         systemcall(command);
         break;
     case 10: // snap left
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_X);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_NEGATIVE_X);
         systemcall(command);
         break;
     case 11: // snap right
-        sprintf(command, "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_X);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800001 %d -i -f", SENSOR_MOTION_SNAP_POSITIVE_X);
         systemcall(command);
         break;
     case 12: // move to call (direct call)
-        sprintf(command, "vconftool set -t int memory/private/sensor/800020 %d -i -f", SENSOR_MOTION_MOVE_MOVETOCALL);
+        snprintf(command, sizeof(command), "vconftool set -t int memory/private/sensor/800020 %d -i -f", SENSOR_MOTION_MOVE_MOVETOCALL);
         systemcall(command);
         break;
     default:
@@ -359,7 +359,7 @@ int parse_rssi_data(int len, char *buffer)
 
     x = atoi(tmpbuf);
 
-    sprintf(command, "vconftool set -t int memory/telephony/rssi %d -i -f", x);
+    snprintf(command, sizeof(command), "vconftool set -t int memory/telephony/rssi %d -i -f", x);
     systemcall(command);
 
     return 0;
