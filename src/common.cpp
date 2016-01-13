@@ -46,6 +46,7 @@
 #define P9_FCALL_SIZE 20
 #define DEFAULT_PAYLOAD_SIZE 8192
 #define MAX_PAYLOAD_SIZE 65536
+#define MAX_DIGITS_INT 10            // in decimal
 
 unsigned int msize = MAX_PAYLOAD_SIZE;
 
@@ -140,7 +141,6 @@ int try_mount(char* tag, char* path)
     char mount_opt[OPT_SIZE] = {0, };
 
     snprintf(mount_opt, sizeof(mount_opt), "trans=virtio,version=9p2000.L,msize=%u", msize - P9_FCALL_SIZE);
-
 
     ret = mount(tag, path, "9p", 0, mount_opt);
 
@@ -246,13 +246,12 @@ static void low_memory_cb(keynode_t* pKey, void* pData)
         {
             int value = vconf_keynode_get_int(pKey);
             LOGDEBUG("key = %s, value = %d(int)", vconf_keynode_get_name(pKey), value);
-            char *buf = (char*)malloc(sizeof(int));
+            char *buf = (char*)malloc(MAX_DIGITS_INT + 1);
             if (!buf) {
                 LOGERR("insufficient memory available");
                 return;
             }
-
-            sprintf(buf, "%d", vconf_keynode_get_int(pKey));
+            snprintf(buf, MAX_DIGITS_INT + 1, "%d", vconf_keynode_get_int(pKey));
             send_to_ecs(IJTYPE_VCONF, GROUP_MEMORY, STATUS, buf);
 
             free(buf);

@@ -40,15 +40,16 @@ static const char* hds_available_path [] = {
 static bool get_tag_path(char* data, char** tag, char** path)
 {
     char token[] = "\n";
+    char *saveptr;
 
     LOGINFO("get_tag_path data : %s", data);
-    *tag = strtok(data, token);
+    *tag = strtok_r(data, token, &saveptr);
     if (*tag == NULL) {
         LOGERR("data does not have a correct tag: %s", data);
         return false;
     }
 
-    *path = strtok(NULL, token);
+    *path = strtok_r(NULL, token, &saveptr);
     if (*path == NULL) {
         LOGERR("data does not have a correct path: %s", data);
         return false;
@@ -181,27 +182,31 @@ bool msgproc_hds(ijcommand* ijcmd)
 
     LOGINFO("action: %d, data: %s", ijcmd->msg.action, data);
     if (ijcmd->msg.action == 1) {
-        if (pthread_create(&tid[TID_HDS_ATTACH], NULL, mount_hds, (void*)data) != 0) {
-            if (!get_tag_path(data, &tag, &path)) {
-                LOGERR("mount pthread_create fail - wrong tag or path.");
-                return true;
-            }
-            LOGERR("mount hds pthread create fail!");
-            send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 2, tag);
+        if (pthread_create(&tid[TID_HDS_ATTACH], NULL, mount_hds, (void*)data) == 0) {
+            return true;
         }
+        LOGERR("mount hds pthread create fail!");
+        if (!get_tag_path(data, &tag, &path)) {
+            LOGERR("mount pthread_create fail - wrong tag or path.");
+            free(data);
+            return true;
+        }
+        send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 2, tag);
     } else if (ijcmd->msg.action == 2) {
-        if (pthread_create(&tid[TID_HDS_DETACH], NULL, umount_hds, (void*)data) != 0) {
-            if (!get_tag_path(data, &tag, &path)) {
-                LOGERR("umount pthread_create fail - wrong tag or path.");
-                free(data);
-                return true;
-            }
-            LOGERR("umount hds pthread create fail!");
-            send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 4, tag);
+        if (pthread_create(&tid[TID_HDS_DETACH], NULL, umount_hds, (void*)data) == 0) {
+            return true;
         }
+        LOGERR("umount hds pthread create fail!");
+        if (!get_tag_path(data, &tag, &path)) {
+            LOGERR("umount pthread_create fail - wrong tag or path.");
+            free(data);
+            return true;
+        }
+        send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, 4, tag);
     } else {
         LOGERR("unknown action cmd.");
     }
+
     free(data);
     return true;
 }

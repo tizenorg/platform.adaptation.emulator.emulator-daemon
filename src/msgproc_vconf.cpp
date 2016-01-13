@@ -41,8 +41,14 @@ static void* get_vconf_value(void* data)
     char *value = NULL;
     vconf_res_type *vrt = (vconf_res_type*)data;
 
+    if (!vrt)
+    {
+        LOGERR("vconf data is null");
+        pthread_exit((void *) 0);
+    }
+
     if (!check_possible_vconf_key(vrt->vconf_key)) {
-        LOGERR("%s is not available key.");
+        LOGERR("%s is not available key.", vrt->vconf_key);
     } else {
         int length = get_vconf_status(&value, vrt->vconf_type, vrt->vconf_key);
         if (length == 0 || !value) {
@@ -65,11 +71,17 @@ static void* set_vconf_value(void* data)
 {
     pthread_detach(pthread_self());
 
-    vconf_res_type *vrt = (vconf_res_type*)data;
     int val = -1;
+    vconf_res_type *vrt = (vconf_res_type*)data;
+
+    if (!vrt)
+    {
+        LOGERR("vconf data is null");
+        pthread_exit((void *) 0);
+    }
 
     if (!check_possible_vconf_key(vrt->vconf_key)) {
-        LOGERR("%s is not available key.");
+        LOGERR("%s is not available key.", vrt->vconf_key);
     } else {
         keylist_t *get_keylist;
         keynode_t *pkey_node = NULL;
@@ -151,10 +163,14 @@ bool msgproc_vconf(ijcommand* ijcmd)
     const int tmpsize = ijcmd->msg.length;
     char token[] = "\n";
     char tmpdata[tmpsize];
+    char *saveptr;
+    int vconf_key_size;
+    int vconf_val_size;
+
     memcpy(tmpdata, ijcmd->data, tmpsize);
 
     char* ret = NULL;
-    ret = strtok(tmpdata, token);
+    ret = strtok_r(tmpdata, token, &saveptr);
     if (!ret) {
         LOGERR("vconf type is empty");
         return true;
@@ -181,32 +197,33 @@ bool msgproc_vconf(ijcommand* ijcmd)
         goto error;
     }
 
-    ret = strtok(NULL, token);
+    ret = strtok_r(NULL, token, &saveptr);
     if (!ret) {
         LOGERR("vconf key is empty");
         goto error;
     }
-
-    vrt->vconf_key = (char*)malloc(strlen(ret) + 1);
+    vconf_key_size = strlen(ret);
+    vrt->vconf_key = (char*)malloc(vconf_key_size + 1);
     if (!vrt->vconf_key) {
         LOGERR("insufficient memory available");
         goto error;
     }
-    sprintf(vrt->vconf_key, "%s", ret);
+    snprintf(vrt->vconf_key, vconf_key_size + 1, "%s", ret);
 
     if (ijcmd->msg.action == VCONF_SET) {
-        ret = strtok(NULL, token);
+        ret = strtok_r(NULL, token, &saveptr);
         if (!ret) {
             LOGERR("vconf value is empty");
             goto error2;
         }
 
-        vrt->vconf_val = (char*)malloc(strlen(ret) + 1);
+        vconf_val_size = strlen(ret);
+        vrt->vconf_val = (char*)malloc(vconf_val_size + 1);
         if (!vrt->vconf_val) {
             LOGERR("insufficient memory available");
             goto error2;
         }
-        sprintf(vrt->vconf_val, "%s", ret);
+        snprintf(vrt->vconf_val, vconf_val_size + 1, "%s", ret);
 
         if (pthread_create(&tid[TID_VCONF], NULL, set_vconf_value, (void*)vrt) == 0) {
             return true;

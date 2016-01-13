@@ -77,7 +77,7 @@ static void init_plugins(void)
 
     while ((dir_ent = readdir(dirp)))
     {
-        sprintf(plugin_path, "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
+        snprintf(plugin_path, sizeof(plugin_path), "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
 
         LOGDEBUG("Try to load plugin (%s)", plugin_path);
 
@@ -223,7 +223,7 @@ static void recv_from_evdi(evdi_fd fd)
         {
             if (errno != EAGAIN)
             {
-                LOGERR("EAGAIN");
+                LOGERR("read failed. errno = %d", errno);
                 return;
             }
         }
@@ -242,11 +242,11 @@ static void recv_from_evdi(evdi_fd fd)
     ijcommand ijcmd;
     readed = g_synbuf.read(ijcmd.cmd, ID_SIZE);
 
-    LOGDEBUG("ij id : %s", ijcmd.cmd);
-
     // TODO : check
     if (readed < ID_SIZE)
         return;
+
+    LOGDEBUG("ij id : %s", ijcmd.cmd);
 
     // read header
     readed = g_synbuf.read((char*)&ijcmd.msg, HEADER_SIZE);
@@ -408,9 +408,9 @@ static void* handling_network(void* data)
     send_default_mount_req();
 
     ret = valid_hds_path((char*)HDS_DEFAULT_PATH);
-    LOGINFO("check directory '/mnt/host' for default fileshare: %d", ret);
+    LOGINFO("check directory '%s' for default fileshare: %d", HDS_DEFAULT_PATH, ret);
     ret = try_mount((char*)HDS_DEFAULT_TAG, (char*)HDS_DEFAULT_PATH);
-    LOGINFO("try mount /mnt/host for default fileshare: %d", ret);
+    LOGINFO("try mount %s for default fileshare: %d", HDS_DEFAULT_PATH, ret);
     if (ret == 0) {
         send_to_ecs(IJTYPE_HDS, MSG_GROUP_HDS, HDS_ACTION_DEFAULT, (char*)HDS_DEFAULT_TAG);
     }
@@ -510,7 +510,7 @@ int main( int argc , char *argv[])
 
     ret = pthread_join(tid[TID_NETWORK], &retval);
     if (ret < 0) {
-        LOGERR("validate package pthread join is failed.");
+        LOGERR("message loop pthread join is failed.");
     }
 
     ret = pthread_join(conn_thread_t, &retval);

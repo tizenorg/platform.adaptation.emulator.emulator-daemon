@@ -51,7 +51,7 @@ static char* get_location_status(void* p)
         message = (char*)malloc(5);
         memset(message, 0, 5);
 
-        ret = sprintf(message, "%d", mode);
+        ret = snprintf(message, 5, "%d", mode);
         if (ret < 0) {
             free(message);
             message = 0;
@@ -69,7 +69,7 @@ static char* get_location_status(void* p)
 
         message = (char*)malloc(256);
         memset(message, 0, 256);
-        ret = sprintf(message, "%d,%s", mode, temp);
+        ret = snprintf(message, 256, "%d,%s", mode, temp);
         if (ret < 0) {
             free(message);
             message = 0;
@@ -99,7 +99,7 @@ static char* get_location_status(void* p)
 
         message = (char*)malloc(128);
         memset(message, 0, 128);
-        ret = sprintf(message, "%d,%f,%f,%f,%f", mode, latitude, logitude, altitude, accuracy);
+        ret = snprintf(message, 128, "%d,%f,%f,%f,%f", mode, latitude, logitude, altitude, accuracy);
         if (ret < 0) {
             free(message);
             message = 0;
@@ -137,7 +137,7 @@ static void* getting_location(void* data)
         return NULL;
     }
 
-    switch(param->ActionID)
+    switch (param->ActionID)
     {
         case LOCATION_STATUS:
             msg = get_location_status((void*)packet);
@@ -176,7 +176,7 @@ static void* getting_location(void* data)
         free(tmp);
     }
 
-    if(msg != 0)
+    if (msg != 0)
     {
         free(msg);
         msg = 0;
@@ -192,8 +192,9 @@ static void* getting_location(void* data)
 
 void setting_location(char* databuf)
 {
-    char* s = strchr(databuf, ',');
+    char *s = strchr(databuf, ',');
     int err = 0;
+    char *saveptr;
     if (s == NULL) { // SET MODE
         int mode = atoi(databuf);
 
@@ -208,13 +209,13 @@ void setting_location(char* databuf)
     } else {
         *s = '\0';
         int mode = atoi(databuf);
-        if(mode == 1) { // NMEA MODE (LOG MODE)
+        if (mode == 1) { // NMEA MODE (LOG MODE)
             err = vconf_set_str(VCONF_FILENAME, s+1);
             LOGFAIL(err, "Set FileName failed. name = %s", s+1);
             err = vconf_set_int(VCONF_REPLAYMODE, mode);
             LOGFAIL(err, "Set ReplayMode failed. mode = %d", mode);
         } else if (mode == 2) {
-            char* ptr = strtok(s+1, ",");
+            char* ptr = strtok_r(s+1, ",", &saveptr);
             double value = 0.0;
 
             // Latitude
@@ -223,19 +224,19 @@ void setting_location(char* databuf)
             LOGFAIL(err, "Set ManualLatitude failed. value = %f", value);
 
             // Longitude
-            ptr = strtok(NULL, ",");
+            ptr = strtok_r(NULL, ",", &saveptr);
             value = atof(ptr);
             err = vconf_set_dbl(VCONF_MLONGITUDE, value);
             LOGFAIL(err, "Set ManualLongitude failed. value = %f", value);
 
             // Altitude
-            ptr = strtok(NULL, ",");
+            ptr = strtok_r(NULL, ",", &saveptr);
             value = atof(ptr);
             err = vconf_set_dbl(VCONF_MALTITUDE, value);
             LOGFAIL(err, "Set ManualAltitude failed. value = %f", value);
 
             // Accuracy
-            ptr = strtok(NULL, ",");
+            ptr = strtok_r(NULL, ",", &saveptr);
             value = atof(ptr);
             err = vconf_set_dbl(VCONF_MHACCURACY, value);
             LOGFAIL(err, "Set ManualHAccuracy failed. value = %f", value);
