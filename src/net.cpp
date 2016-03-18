@@ -298,7 +298,7 @@ void *register_connection(void* data)
 {
     int ret;
     while ((ret = connection_create(&connection)) == CONNMAN_NOT_READY) {
-        usleep(100);
+        usleep(20000);
     }
     if (CONNECTION_ERROR_NONE == ret) {
         LOGINFO("connection_create() success!: [%p]", connection);
@@ -433,7 +433,7 @@ void set_guest_addr()
         strncpy(ifrq.ifr_name, "eth0", sizeof("eth0"));
         while (ioctl(fd, SIOCGIFADDR, &ifrq) < 0) {
             /* while to get ip address */
-            usleep(100);
+            usleep(20000);
         }
         sin = (struct sockaddr_in *)&ifrq.ifr_addr;
         LOGINFO("use dynamic IP. do not need update network information.");

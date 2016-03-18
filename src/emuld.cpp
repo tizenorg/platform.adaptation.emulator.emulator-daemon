@@ -62,6 +62,7 @@ static void init_plugins(void)
 {
     DIR *dirp = NULL;
     struct dirent *dir_ent = NULL;
+    struct dirent entry;
     char plugin_path[MAX_PATH] = {0, };
     void* handle = NULL;
     bool (*plugin_init)() = NULL;
@@ -75,7 +76,7 @@ static void init_plugins(void)
         return;
     }
 
-    while ((dir_ent = readdir(dirp)))
+    while ((!readdir_r(dirp, &entry, &dir_ent)))
     {
         snprintf(plugin_path, sizeof(plugin_path), "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
 
