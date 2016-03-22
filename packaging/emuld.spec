@@ -75,6 +75,7 @@ export CFLAGS+=" -DUNKNOWN_PROFILE"
 
 cmake . \
     -DCMAKE_INSTALL_PREFIX=%{_prefix} \
+    -DLIB_INSTALL_DIR=%{_libdir} \
     -DMSGPROC_HDS=%{msgproc_hds} \
     -DMSGPROC_CMD=%{msgproc_cmd} \
     -DMSGPROC_PACKAGE=%{msgproc_package} \
