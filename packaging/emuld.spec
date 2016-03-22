@@ -1,5 +1,13 @@
+#
+# emuld package spec file
+#
+
+%define emuld_major_version 0
+%define emuld_minor_version 10
+%define emuld_release_number 7
+
 Name: emuld
-Version: 0.10.7
+Version: %{emuld_major_version}.%{emuld_minor_version}.%{emuld_release_number}
 Release: 0
 Summary: Emulator daemon
 License: Apache-2.0
@@ -76,6 +84,9 @@ export CFLAGS+=" -DUNKNOWN_PROFILE"
 cmake . \
     -DCMAKE_INSTALL_PREFIX=%{_prefix} \
     -DLIB_INSTALL_DIR=%{_libdir} \
+    -DEMULD_MAJOR_VERSION=%{emuld_major_version} \
+    -DEMULD_MINOR_VERSION=%{emuld_minor_version} \
+    -DEMULD_RELEASE_NUMBER=%{emuld_release_number} \
     -DMSGPROC_HDS=%{msgproc_hds} \
     -DMSGPROC_CMD=%{msgproc_cmd} \
     -DMSGPROC_PACKAGE=%{msgproc_package} \
