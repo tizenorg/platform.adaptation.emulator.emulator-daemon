@@ -76,7 +76,7 @@ static void init_plugins(void)
         return;
     }
 
-    while ((!readdir_r(dirp, &entry, &dir_ent)))
+    while ((!readdir_r(dirp, &entry, &dir_ent)) && dir_ent)
     {
         snprintf(plugin_path, sizeof(plugin_path), "%s/%s", EMULD_PLUGIN_DIR, dir_ent->d_name);
 
