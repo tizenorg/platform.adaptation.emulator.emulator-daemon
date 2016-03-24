@@ -479,7 +479,7 @@ bool msgproc_extinput(ijcommand* ijcmd)
         section = strtok_r(NULL, token, &saveptr);
         state = (unsigned int)atoi(section);
 
-        if (number > MAX_EXTINPUT_COUNT) {
+        if (number <= 0 || number > MAX_EXTINPUT_COUNT) {
             LOGDEBUG("external_input number : %d is invalid.", number);
             return false;
         }
