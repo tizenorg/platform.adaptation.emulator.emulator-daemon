@@ -4,7 +4,7 @@
 
 %define emuld_major_version 0
 %define emuld_minor_version 10
-%define emuld_release_number 9
+%define emuld_release_number 10
 
 Name: emuld
 Version: %{emuld_major_version}.%{emuld_minor_version}.%{emuld_release_number}
