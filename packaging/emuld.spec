@@ -60,14 +60,14 @@ chmod 644 %{SOURCE0}
 %define msgproc_vconf on
 %define msgproc_suspend on
 
-%if "%{?tizen_profile_name}" == "mobile"
+%if "%{?profile}" == "mobile"
 %define msgproc_location on
 %endif
-%if "%{?tizen_profile_name}" == "wearable"
+%if "%{?profile}" == "wearable"
 %define msgproc_location on
 %endif
 
-%if "%{?tizen_profile_name}" == "mobile"
+%if "%{?profile}" == "mobile"
 export CFLAGS+=" -DMOBILE"
 %else
 %if "%{?profile}" == "wearable"
