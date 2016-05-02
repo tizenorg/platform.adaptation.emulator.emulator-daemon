@@ -131,7 +131,7 @@ static void* getting_location(void* data)
     char* msg = 0;
     LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
 
-    if (!package)
+    if (!packet)
     {
         LOGERR("Failed to allocate packet");
         return NULL;
