@@ -254,7 +254,7 @@ bool msgproc_location(ijcommand* ijcmd)
             return true;
 
         param->ActionID = ijcmd->msg.action;
-        memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
+        strncpy(param->type_cmd, ijcmd->cmd, sizeof(param->type_cmd) - 1);
 
         if (pthread_create(&tid[TID_LOCATION], NULL, getting_location, (void*) param) != 0)
         {

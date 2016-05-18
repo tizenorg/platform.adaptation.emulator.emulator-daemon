@@ -504,7 +504,7 @@ bool msgproc_sensor(ijcommand* ijcmd)
         memset(param, 0, sizeof(*param));
 
         param->ActionID = ijcmd->msg.action;
-        memcpy(param->type_cmd, ijcmd->cmd, ID_SIZE);
+        strncpy(param->type_cmd, ijcmd->cmd, sizeof(param->type_cmd) - 1);
 
         if (pthread_create(&tid[TID_SENSOR], NULL, getting_sensor, (void*)param) != 0)
         {
