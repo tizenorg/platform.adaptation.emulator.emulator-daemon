@@ -107,7 +107,7 @@ static void dbus_send_usb(int on)
 
     snprintf(option, sizeof(option), "int32:2 string:\"usb\" string:\"%d\"", on);
 
-    dbus_send(usb_device, DBUS_SEND_EXTCON, option);
+    dbus_send_signal(usb_device, DBUS_SEND_EXTCON, option);
 }
 
 static void dbus_send_earjack(int on)
@@ -117,7 +117,7 @@ static void dbus_send_earjack(int on)
 
     snprintf(option, sizeof(option), "int32:2 string:\"earjack\" string:\"%d\"", on);
 
-    dbus_send(earjack_device, DBUS_SEND_EXTCON, option);
+    dbus_send_signal(earjack_device, DBUS_SEND_EXTCON, option);
 }
 
 int parse_motion_data(int len, char *buffer)

@@ -125,6 +125,7 @@ void send_emuld_connection(void);
 void add_msg_proc_common(void);
 void add_msg_proc_ext(void);
 void dbus_send(const char* device, const char* target, const char* option);
+void dbus_send_signal(const char* device, const char* target, const char* option);
 int parse_val(char *buff, unsigned char data, char *parsbuf);
 bool msgproc_hds(ijcommand* ijcmd);
 bool msgproc_cmd(ijcommand* ijcmd);

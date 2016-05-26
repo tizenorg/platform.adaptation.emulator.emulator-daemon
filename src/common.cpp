@@ -291,6 +291,23 @@ void dbus_send(const char* device, const char* target, const char* option)
     LOGINFO("dbus_send: %s", cmd);
 }
 
+#define DBUS_SEND_PRE_CMD_SIGNAL   "dbus-send --system --type=signal /Org/Tizen/System/DeviceD/"
+#define DBUS_SEND_MID_CMD_SIGNAL   " org.tizen.system.deviced."
+void dbus_send_signal(const char* device, const char* target, const char* option)
+{
+    const char* dbus_send_pre_cmd = DBUS_SEND_PRE_CMD_SIGNAL;
+    const char* dbus_send_mid_cmd = DBUS_SEND_MID_CMD_SIGNAL;
+    char cmd[DBUS_MSG_BUF_SIZE];
+
+    if (device == NULL || option == NULL || target == NULL)
+        return;
+
+    snprintf(cmd, sizeof(cmd), "%s%s%s%s.%s string:\"%s\" %s", dbus_send_pre_cmd, target, dbus_send_mid_cmd, target, device, device, option);
+
+    systemcall(cmd);
+    LOGINFO("dbus_send: %s", cmd);
+}
+
 void add_msg_proc_common(void)
 {
     bool ret;
