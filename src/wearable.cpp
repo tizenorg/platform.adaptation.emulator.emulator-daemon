@@ -33,10 +33,13 @@
 #include "emuld.h"
 #include "wearable.h"
 
+#define RSSI_LEVEL          104
+
 enum sensor_type{
     BATTERYLEVEL = 8,
     EARJACK = 9,
     USB = 10,
+    RSSI = 11,
 };
 
 #define POWER_SUPPLY    "power_supply"
@@ -206,6 +209,34 @@ int parse_usb_data(int len, char *buffer)
     return 0;
 }
 
+int parse_rssi_data(int len, char *buffer)
+{
+    int len1=0;
+    char tmpbuf[255];
+    int x;
+    char command[128];
+    memset(command, '\0', sizeof(command));
+
+    LOGINFO("read data: %s", buffer);
+
+    // read param count
+    memset(tmpbuf, '\0', sizeof(tmpbuf));
+    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
+    len += len1;
+
+    /* first data */
+    memset(tmpbuf, '\0', sizeof(tmpbuf));
+    len1 = parse_val(buffer+len, 0x0a, tmpbuf);
+    len += len1;
+
+    x = atoi(tmpbuf);
+
+    snprintf(command, sizeof(command), "vconftool set -t int memory/telephony/rssi %d -i -f", x);
+    systemcall(command);
+
+    return 0;
+}
+
 static void setting_sensor(char *buffer)
 {
     int len = 0;
@@ -235,16 +266,120 @@ static void setting_sensor(char *buffer)
         if(ret < 0)
             LOGERR("usb parse error!");
         break;
+    case RSSI:
+        ret = parse_rssi_data(len, buffer);
+        if(ret < 0)
+            LOGERR("rssi parse error!");
+        break;
     default:
         break;
     }
+}
+
+char* get_rssi_level(void* p)
+{
+    char* message = NULL;
+    int length = get_vconf_status(&message, VCONF_TYPE_INT, "memory/telephony/rssi");
+    if (length < 0){
+        return 0;
+    }
+
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)p;
+    memset(packet, 0, sizeof(LXT_MESSAGE));
+    packet->length = length;
+    packet->group  = STATUS;
+    packet->action = RSSI_LEVEL;
+
+    return message;
+}
+
+static void* getting_sensor(void* data)
+{
+    pthread_detach(pthread_self());
+
+    setting_device_param* param = (setting_device_param*) data;
+
+    if (!param)
+        return 0;
+
+    char* msg = 0;
+    LXT_MESSAGE* packet = (LXT_MESSAGE*)malloc(sizeof(LXT_MESSAGE));
+
+    switch(param->ActionID)
+    {
+        case RSSI_LEVEL:
+            msg = get_rssi_level((void*)packet);
+            if (msg == 0) {
+                LOGERR("failed getting rssi level");
+            }
+            break;
+        default:
+            LOGERR("Wrong action ID. %d", param->ActionID);
+        break;
+    }
+
+    if (msg == 0)
+    {
+        LOGDEBUG("send error message to injector");
+        memset(packet, 0, sizeof(LXT_MESSAGE));
+        packet->length = 0;
+        packet->group = STATUS;
+        packet->action = param->ActionID;
+    }
+    else
+    {
+        LOGDEBUG("send data to injector");
+    }
+
+    const int tmplen = HEADER_SIZE + packet->length;
+    char* tmp = (char*) malloc(tmplen);
+    if (tmp)
+    {
+        memcpy(tmp, packet, HEADER_SIZE);
+        if (packet->length > 0)
+            memcpy(tmp + HEADER_SIZE, msg, packet->length);
+
+        ijmsg_send_to_evdi(g_fd[fdtype_device], param->type_cmd, (const char*) tmp, tmplen);
+
+        free(tmp);
+    }
+
+    if(msg != 0)
+    {
+        free(msg);
+        msg = 0;
+    }
+
+    free(packet);
+
+    if (param)
+        delete param;
+
+    pthread_exit((void *) 0);
 }
 
 bool msgproc_sensor(ijcommand* ijcmd)
 {
     LOGDEBUG("msgproc_sensor");
 
-    if (ijcmd->msg.group != STATUS)
+    if (ijcmd->msg.group == STATUS)
+    {
+        setting_device_param* param = new setting_device_param();
+        if (!param)
+            return true;
+
+        memset(param, 0, sizeof(*param));
+
+        param->ActionID = ijcmd->msg.action;
+        strncpy(param->type_cmd, ijcmd->cmd, sizeof(param->type_cmd) - 1);
+
+        if (pthread_create(&tid[TID_SENSOR], NULL, getting_sensor, (void*)param) != 0)
+        {
+            LOGERR("sensor pthread create fail!");
+            return true;
+        }
+    }
+    else
     {
         if (ijcmd->data != NULL && strlen(ijcmd->data) > 0) {
             setting_sensor(ijcmd->data);
