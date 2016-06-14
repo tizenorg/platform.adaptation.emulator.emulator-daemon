@@ -1,22 +1,5 @@
 <manifest>
-	<define>
-		<domain name="emuld"/>
-		<request>
-			<smack request="deviced::display" type="rw" />
-			<smack request="dbus" type="rwx" />
-			<smack request="system::use_internet" type="rw" />
-			<smack request="connman::get" type="rw" />
-			<smack request="connman::set" type="rw" />
-			<smack request="connman::profile" type="rw" />
-			<smack request="tizen::vconf::public::r" type="rw" />
-			<smack request="tizen::vconf::platform::rw" type="rw" />
-		</request>
-		<permit>
-			<smack permit="dbus" type="rwx" />
-			<smack permit="system::use_internet" type="rw" />
-		</permit>
-	</define>
 	<request>
-		<domain name="emuld" />
+		<domain name="_"/>
 	</request>
 </manifest>
