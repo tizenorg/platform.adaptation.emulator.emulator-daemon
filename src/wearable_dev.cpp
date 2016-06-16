@@ -85,7 +85,7 @@ static void dbus_send_power_supply(int capacity, int charger)
     sprintf(option, "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
-    dbus_send(power_device, option);
+    dbus_send_signal(power_device, DBUS_SEND_SYSNOTI, option);
 }
 
 #define DEVICE_CHANGED  "device_changed"

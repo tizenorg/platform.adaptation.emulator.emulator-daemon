@@ -64,7 +64,7 @@ static void dbus_send_power_supply(int capacity, int charger)
     snprintf(option, sizeof(option), "int32:5 string:\"%d\" string:\"%s\" string:\"Good\" string:\"%d\" string:\"1\"",
             capacity, state, (charger + 1));
 
-    dbus_send(power_device, DBUS_SEND_SYSNOTI, option);
+    dbus_send_signal(power_device, DBUS_SEND_SYSNOTI, option);
 }
 
 static void dbus_send_usb(int on)
