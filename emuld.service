@@ -4,6 +4,7 @@ After=dbus.service
 
 [Service]
 Type=simple
+SmackProcessLabel=System::Privileged
 ExecStart=/usr/bin/emuld
 
 [Install]
